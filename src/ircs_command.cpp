@@ -146,6 +146,30 @@ CommandStatus HandleUser(const CommandEntry *command, EventLoopContext *context,
     return kContinue;
 }
 
+// NOTE: We don't implement it but are required to respond to the client
+//       with ERR_SUMMONDISABLED (see RFC 2812 section 5.2)
+CommandStatus HandleSummon(const CommandEntry *command, EventLoopContext *context, Client *client,
+                           const msg::Message &message)
+{
+    (void)context;
+    (void)message;
+    (void)command;
+    QueueNumericReply(client, kErrSummonDisabled, ":SUMMON has been disabled");
+    return kContinue;
+}
+
+// NOTE: We don't implement it but are required to respond to the client
+//       with ERR_USERSDISABLED(see RFC 2812 section 5.2)
+CommandStatus HandleUsers(const CommandEntry *command, EventLoopContext *context, Client *client,
+                          const msg::Message &message)
+{
+    (void)context;
+    (void)message;
+    (void)command;
+    QueueNumericReply(client, kErrUsersDisabled, ":USERS has been disabled");
+    return kContinue;
+}
+
 // NOTE: Add Commands in this table!
 std::vector<CommandEntry> InitializeCommandTable()
 {
@@ -154,6 +178,8 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kPass, HandlePass, 1, 1});
     table.push_back((CommandEntry){kUser, HandleUser, 4, 4});
     table.push_back((CommandEntry){kNick, HandleNick, 1, 1});
+    table.push_back((CommandEntry){kNick, HandleSummon, 0, 0});
+    table.push_back((CommandEntry){kNick, HandleUsers, 0, 0});
 
     return table;
 }
