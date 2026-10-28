@@ -7,6 +7,10 @@
 
 namespace ircs {
 
+// NOTE: This limit is set for the PRIVMSG command as it allows to send to
+//       multiple users/channels at once
+const int kTargMax = 3;
+
 const char *const kPass = "PASS";
 const char *const kUser = "USER";
 const char *const kNick = "NICK";

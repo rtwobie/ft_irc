@@ -1,5 +1,6 @@
 #include "ircs_command.h"
 
+#include <sstream>
 #include <vector>
 
 #include "ircs_client.h"
@@ -170,6 +171,105 @@ CommandStatus HandleUsers(const CommandEntry *command, EventLoopContext *context
     return kContinue;
 }
 
+int GetRecipients(std::string recipients[kTargMax], const std::string &s)
+{
+    std::stringstream ss(s);
+    std::string recipient;
+    const char delim = ',';
+
+    int i = 0;
+    while (std::getline(ss, recipient, delim)) {
+        if (i >= kTargMax) {
+            return -1;
+        }
+        recipients[i] = recipient;
+        i++;
+    }
+    return 0;
+}
+
+Client *FindClient(std::map<int, Client *> &clients, const std::string &nickname)
+{
+    std::map<int, Client *>::const_iterator it = clients.begin();
+
+    while (it != clients.end()) {
+        if (it->second->nick_name == nickname) {
+            return clients[it->first];
+        }
+        it++;
+    }
+    return NULL;
+}
+
+CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *context, Client *client,
+                            const msg::Message &message)
+{
+    // NOTE: Possible Error codes
+    // ERR_NORECIPIENT
+    // ERR_NOTEXTTOSEND
+    // ERR_TOOMANYTARGETS
+    //
+    // ERR_CANNOTSENDTOCHAN
+    // ERR_WILDTOPLEVEL
+    // ERR_NOSUCHNICK
+    // ERR_NOTOPLEVEL
+    // RPL_AWAY
+
+    if (client->state != kClientRegistered) {
+        QueueNumericReply(client, kErrNotRegistered, ":You have not registered");
+        return kContinue;
+    }
+
+    if (message.parameters[0].empty()) {
+        QueueNumericReply(client, kErrNoRecipient, ":No recipient given (" + command->name + ")");
+        return kContinue;
+    }
+
+    if (message.has_trailing == false) {
+        QueueNumericReply(client, kErrNoTextToSend, ":No text to send");
+        return kContinue;
+    } else if (message.has_trailing == true &&
+               message.parameters[command->min_params - 1].empty()) {
+        QueueNumericReply(client, kErrNoTextToSend, ":No text to send");
+        return kContinue;
+    }
+
+    // Send the incoming message to the recipients, but add client credentials as a prefix
+    std::string sender_prefix =
+        client->nick_name + "!" + client->user_name + "@" + client->host_name;
+    std::string reply = sender_prefix + " " + command->name + " " + message.parameters[0] + " :" +
+                        message.parameters[1];
+
+    std::string recipients[kTargMax];
+    if (GetRecipients(recipients, message.parameters[0]) == -1) {
+        std::ostringstream oss;
+        oss << ":Too many recipients. Only the first " ;
+        oss << kTargMax;
+        oss << " will be processed.";
+        QueueNumericReply(client, kErrTooManyTargets, oss.str());
+        return kContinue;
+    }
+
+    for (size_t i = 0; i < kTargMax; i++) {
+        // WARN: CURRENT LIMITATION:
+        //       Trying to send a message to a channel will report ERR_NOSUCHCHANNEL
+        //       as Channels are not implemented yet
+        if (recipients[i][0] == '#') {
+            QueueNumericReply(client, kErrNoSuchChannel, recipients[i] + " :No such channel");
+            continue;
+        }
+        Client *recipient = FindClient(context->clients, recipients[i]);
+        if (recipient == NULL) {
+            QueueNumericReply(client, kErrNoSuchNick, recipients[i] + " :No such nick/channel");
+            continue;
+        }
+
+        QueueRawReply(recipient, reply);
+        context->pending_writes.push_back(recipient->fd);
+    }
+    return kContinue;
+}
+
 // NOTE: Add Commands in this table!
 std::vector<CommandEntry> InitializeCommandTable()
 {
@@ -180,6 +280,7 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kNick, HandleNick, 1, 1});
     table.push_back((CommandEntry){kNick, HandleSummon, 0, 0});
     table.push_back((CommandEntry){kNick, HandleUsers, 0, 0});
+    table.push_back((CommandEntry){kPrivMsg, HandlePrivMsg, 2, 2});
 
     return table;
 }
