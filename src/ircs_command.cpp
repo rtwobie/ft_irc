@@ -105,6 +105,13 @@ CommandStatus HandleNick(const CommandEntry *command, EventLoopContext *context,
         client->state = kClientHasNick;
     }
 
+    // Notify client on nickname change
+    if (!client->nick_name.empty()) {
+        std::string reply = ":" + client->nick_name + "!" + client->user_name + "@" +
+                            client->host_name + " " + command->name + " " + nick_name;
+        QueueRawReply(client, reply);
+    }
+
     client->nick_name = nick_name;
 
     return kContinue;
