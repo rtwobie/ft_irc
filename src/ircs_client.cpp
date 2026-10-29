@@ -2,6 +2,8 @@
 
 #include <sys/socket.h>
 
+#include <vector>
+
 #include "ircs_event_loop.h"
 #include "ircs_logger.h"
 
@@ -29,6 +31,7 @@ Client *NewClient(int fd, char *ip)
 
 void OnClientRead(EventLoop *event_loop, int fd, void *data, int mask)
 {
+    EventLoopContext *context = &event_loop->context;
     Client *client = static_cast<Client *>(data);
     ssize_t bytes_received;
     char buf[kReadChunkSize];
@@ -45,8 +48,7 @@ void OnClientRead(EventLoop *event_loop, int fd, void *data, int mask)
 
     if (bytes_received > 0) {
         Logger(log::kDebug, "", "received: %s", buf);
-        msg::ProcessStatus status =
-            msg::ProcessTcpStream(&event_loop->context, buf, client, bytes_received);
+        msg::ProcessStatus status = msg::ProcessTcpStream(context, buf, client, bytes_received);
 
         if (!client->writebuf.empty() && !(mask & kOnWritable)) {
             if (CreateFileEvent(event_loop, fd, kOnWritable, OnClientWrite, data) == -1) {
@@ -54,6 +56,17 @@ void OnClientRead(EventLoop *event_loop, int fd, void *data, int mask)
                 return;
             }
         }
+
+        std::vector<int> &pending_writes = context->pending_writes;
+        for (size_t i = 0; i < pending_writes.size(); i++) {
+            Client *other = context->clients[pending_writes[i]];
+            if (!other->writebuf.empty() && !(mask & kOnWritable)) {
+                if (CreateFileEvent(event_loop, other->fd, kOnWritable, OnClientWrite, other) == -1) {
+                    CloseConnection(event_loop, other->fd, other);
+                }
+            }
+        }
+        pending_writes.clear();
 
         if (status == msg::kCloseConnection || status == msg::kProtocolError) {
             RequestClose(event_loop, fd, mask, client);

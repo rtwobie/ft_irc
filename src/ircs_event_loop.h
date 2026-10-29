@@ -2,6 +2,7 @@
 #define IRCS_EVENT_LOOP_H_
 
 #include <map>
+#include <vector>
 
 #include "ircs_message.h"
 #include "ircserv.h"
@@ -31,6 +32,7 @@ struct EventLoopContext {
     std::string creation_date;
     std::string host_name;
     std::map<int, Client *> clients;
+    std::vector<int> pending_writes;
 };
 
 struct EventLoop {
