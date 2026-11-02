@@ -34,7 +34,7 @@ void OnClientRead(EventLoop *event_loop, int fd, void *data, int mask)
     EventLoopContext *context = &event_loop->context;
     Client *client = static_cast<Client *>(data);
     ssize_t bytes_received;
-    char buf[kReadChunkSize];
+    char buf[kReadChunkSize] = {0};
 
     bytes_received = recv(fd, buf, sizeof(buf), 0);
     if (bytes_received == -1) {
