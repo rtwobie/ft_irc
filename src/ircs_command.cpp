@@ -178,6 +178,51 @@ CommandStatus HandleUsers(const CommandEntry *command, EventLoopContext *context
     return kContinue;
 }
 
+// TODO: We need to implement this when we implement the Ping logic
+// CommandStatus HandlePong(const CommandEntry *command, EventLoopContext *context, Client *client,
+//                          const msg::Message &message)
+// {
+//     // Because our server doesnt support a server-to-server network we simply
+//     // send ERR_NOSUCHSERVER
+//     if (message.param_count > 1 && message.has_trailing == false) {
+//         QueueNumericReply(client, kErrNoSuchServer, message.parameters[1] + " :No such server");
+//         return kContinue;
+//     }
+//
+// }
+
+bool IsLocalHost(const std::string &name)
+{
+    return (name == "localhost" || name == "127.0.0.1") ? true : false;
+}
+
+CommandStatus HandlePing(const CommandEntry *command, EventLoopContext *context, Client *client,
+                         const msg::Message &message)
+{
+    std::string reply;
+
+    if (message.param_count < command->min_params) {
+        QueueNumericReply(client, kErrNoOrigin, ":No origin specified");
+        return kContinue;
+    }
+
+    for (int i = 0; i < message.param_count && i < command->max_params; i++) {
+        if (IsLocalHost(message.parameters[i]) && IsLocalHost(context->host_name)) {
+            continue;
+        }
+        if (message.parameters[i] != context->host_name) {
+            reply = message.parameters[i] + " :No such server";
+            QueueNumericReply(client, kErrNoSuchServer, reply);
+            return kContinue;
+        }
+    }
+
+    reply = ":" + context->host_name + " PONG " + context->host_name;
+    QueueRawReply(client, reply);
+
+    return kContinue;
+}
+
 int GetRecipients(std::string recipients[kTargMax], const std::string &s)
 {
     std::stringstream ss(s);
@@ -250,7 +295,7 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
     std::string recipients[kTargMax];
     if (GetRecipients(recipients, message.parameters[0]) == -1) {
         std::ostringstream oss;
-        oss << ":Too many recipients. Only the first " ;
+        oss << ":Too many recipients. Only the first ";
         oss << kTargMax;
         oss << " will be processed.";
         QueueNumericReply(client, kErrTooManyTargets, oss.str());
@@ -288,6 +333,7 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kNick, HandleSummon, 0, 0});
     table.push_back((CommandEntry){kNick, HandleUsers, 0, 0});
     table.push_back((CommandEntry){kPrivMsg, HandlePrivMsg, 2, 2});
+    table.push_back((CommandEntry){kPing, HandlePing, 1, 2});
 
     return table;
 }
