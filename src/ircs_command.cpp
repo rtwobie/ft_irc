@@ -178,6 +178,22 @@ CommandStatus HandleUsers(const CommandEntry *command, EventLoopContext *context
     return kContinue;
 }
 
+CommandStatus HandleQuit(const CommandEntry *command, EventLoopContext *context, Client *client,
+                         const msg::Message &message)
+{
+    (void)command;
+    (void)context;
+    std::string reply;
+
+    // TODO: send quit message to all clients that are in the same channel as
+    //       the one quitting
+
+    reply = "ERROR :Closing Link: " + client->user_name + "@" + client->host_name + " (" +
+            message.parameters[0] + ")";
+    QueueRawReply(client, reply);
+    return kContinue;
+}
+
 // TODO: We need to implement this when we implement the Ping logic
 // CommandStatus HandlePong(const CommandEntry *command, EventLoopContext *context, Client *client,
 //                          const msg::Message &message)
@@ -333,7 +349,6 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kNick, HandleSummon, 0, 0});
     table.push_back((CommandEntry){kNick, HandleUsers, 0, 0});
     table.push_back((CommandEntry){kPrivMsg, HandlePrivMsg, 2, 2});
-    table.push_back((CommandEntry){kPing, HandlePing, 1, 2});
 
     return table;
 }
