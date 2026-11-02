@@ -338,6 +338,21 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
     return kContinue;
 }
 
+CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context, Client *client,
+                         const msg::Message &message)
+{
+    (void)command;
+    (void)context;
+    (void)message;
+
+    if (client->state != kClientRegistered) {
+        QueueNumericReply(client, kErrNotRegistered, ":You have not registered");
+        return kContinue;
+    }
+
+    return kContinue;
+}
+
 // NOTE: Add Commands in this table!
 std::vector<CommandEntry> InitializeCommandTable()
 {
@@ -351,6 +366,7 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kPrivMsg, HandlePrivMsg, 2, 2});
     table.push_back((CommandEntry){kPing, HandlePing, 1, 2});
     table.push_back((CommandEntry){kQuit, HandleQuit, 0, 1});
+    table.push_back((CommandEntry){kJoin, HandleJoin, 1, 1});
 
     return table;
 }
