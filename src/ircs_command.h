@@ -20,6 +20,8 @@ const char *const kJoin = "JOIN";
 const char *const kOper = "OPER";
 const char *const kMode = "MODE";
 const char *const kQuit = "QUIT";
+const char *const kUsers = "USERS";
+const char *const kSummon = "SUMMON";
 
 // IRC Error Codes
 // Error replies (400 to 599)
