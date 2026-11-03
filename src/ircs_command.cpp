@@ -349,6 +349,8 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kNick, HandleSummon, 0, 0});
     table.push_back((CommandEntry){kNick, HandleUsers, 0, 0});
     table.push_back((CommandEntry){kPrivMsg, HandlePrivMsg, 2, 2});
+    table.push_back((CommandEntry){kPing, HandlePing, 1, 2});
+    table.push_back((CommandEntry){kQuit, HandleQuit, 0, 1});
 
     return table;
 }
