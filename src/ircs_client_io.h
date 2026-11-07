@@ -7,7 +7,7 @@
 
 namespace ircs {
 
-void QueueRawReply(Client *client, std::string &message);
+void QueueRawReply(Client *client, const std::string &message);
 void QueueNumericReply(Client *client, int numeric, const std::string &message);
 
 }  // namespace ircs

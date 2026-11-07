@@ -7,10 +7,9 @@
 namespace ircs {
 
 // NOTE: The caller of this function does *NOT* need to add "\r\n" at the end.
-void QueueRawReply(Client *client, std::string &message)
+void QueueRawReply(Client *client, const std::string &message)
 {
-    message += msg::kCrLf;
-    client->writebuf.append(message);
+    client->writebuf.append(message + msg::kCrLf);
 }
 
 void QueueNumericReply(Client *client, int numeric, const std::string &message)
