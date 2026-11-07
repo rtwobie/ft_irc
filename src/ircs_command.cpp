@@ -253,7 +253,7 @@ int GetRecipients(std::string recipients[kTargMax], const std::string &s)
         recipients[i] = recipient;
         i++;
     }
-    return 0;
+    return i;
 }
 
 Client *FindClient(std::map<int, Client *> &clients, const std::string &nickname)
@@ -303,13 +303,15 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
     }
 
     // Send the incoming message to the recipients, but add client credentials as a prefix
+    // TODO: refactor: Use UserPrefix instead;
     std::string sender_prefix =
         client->nick_name + "!" + client->user_name + "@" + client->host_name;
     std::string reply = sender_prefix + " " + command->name + " " + message.parameters[0] + " :" +
                         message.parameters[1];
 
     std::string recipients[kTargMax];
-    if (GetRecipients(recipients, message.parameters[0]) == -1) {
+    int number_of_recipients = GetRecipients(recipients, message.parameters[0]);
+    if (number_of_recipients == -1) {
         std::ostringstream oss;
         oss << ":Too many recipients. Only the first ";
         oss << kTargMax;
@@ -318,7 +320,7 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
         return kContinue;
     }
 
-    for (size_t i = 0; i < kTargMax; i++) {
+    for (int i = 0; i < number_of_recipients; i++) {
         // WARN: CURRENT LIMITATION:
         //       Trying to send a message to a channel will report ERR_NOSUCHCHANNEL
         //       as Channels are not implemented yet
@@ -405,7 +407,7 @@ msg::ProcessStatus DispatchCommand(EventLoopContext *context, Client *client, ms
     CommandStatus status = cmd->handler(cmd, context, client, message);
 
     if (status == kDisconnect) {
-        return msg::kCloseConnection;  // TO DO: new msg for failure
+        return msg::kCloseConnection;
     }
     return msg::kOk;
 }
