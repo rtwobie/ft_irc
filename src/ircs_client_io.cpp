@@ -6,6 +6,16 @@
 
 namespace ircs {
 
+std::string ServerPrefix(std::string &server_name)
+{
+    return ":" + server_name;
+}
+
+std::string UserPrefix(Client *client)
+{
+    return ":" + client->nick_name + "!" + client->user_name + "@" + client->host_name;
+}
+
 // NOTE: The caller of this function does *NOT* need to add "\r\n" at the end.
 void QueueRawReply(Client *client, const std::string &message)
 {

@@ -95,6 +95,7 @@ void OnClientWrite(EventLoop *event_loop, int fd, void *data, int mask)
         return;
     }
 
+    Logger(log::kDebug, "", "sending: %s", std::string(client->writebuf, client->write_pos, bytes_sent).c_str());
     client->write_pos += bytes_sent;
     if (client->write_pos == client->writebuf.length()) {
         client->writebuf.clear();

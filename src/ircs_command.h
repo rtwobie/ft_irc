@@ -31,6 +31,11 @@ enum NumericReplies {
     kRplCreated = 003,
     kRplMyInfo = 004,
 
+    kRplNoTopic = 331,
+    kRplTopic = 332,
+    kRplNamReply = 353,
+    kRplEndOfNames = 366,
+
     // Target & Messaging Errors
     kErrNoSuchNick = 401,
     kErrNoSuchServer = 402,
