@@ -43,7 +43,8 @@ SRC :=	ircserv.cpp \
 		ircs_event_loop.cpp \
 		ircs_listener.cpp \
 		ircs_logger.cpp \
-		ircs_message.cpp
+		ircs_message.cpp \
+		ircs_signal.cpp
 
 OBJ	:= $(SRC:.cpp=.o)
 OBJ	:= $(addprefix $(OBJDIR)/, $(OBJ))

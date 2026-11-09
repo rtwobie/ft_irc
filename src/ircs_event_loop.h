@@ -43,7 +43,6 @@ struct EventLoop {
     int maxfds;                             // amount of file descriptors currently registered
     FileEvent events[kMaxConnections + 1];  // +1 to say the server is full to the last connection
     EventLoopContext context;
-    bool stop;
 };
 
 void CloseConnection(EventLoop *event_loop, int fd, void *data);
