@@ -148,7 +148,7 @@ CommandStatus HandleNick(const CommandEntry *command, EventLoopContext *context,
     if (!client->nick_name.empty()) {
         std::string reply = ":" + client->nick_name + "!" + client->user_name + "@" +
                             client->host_name + " " + command->name + " " + nick_name;
-        QueueRawReply(client, reply);
+        QueueCommonChannelsMessage(client, reply, true);
     }
 
     client->nick_name = nick_name;
