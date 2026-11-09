@@ -228,8 +228,8 @@ ProcessStatus ProcessTcpStream(EventLoopContext *context, char *buf, Client *cli
 
     while (MessageBufferNext(client->message_buffer, line) == kOk) {
         if (ParseMessage(line, client->message) == -1) {
-            std::string message = ":" + context->host_name + " ERROR " + client->nick_name +
-                                  " :Bad Message framing";
+            std::string message =
+                ":" + context->host_name + " ERROR " + client->nick_name + " :Bad Message framing";
             QueueRawReply(client, message);
             return kProtocolError;
         }

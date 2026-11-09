@@ -220,16 +220,16 @@ CommandStatus HandleUsers(const CommandEntry *command, EventLoopContext *context
 CommandStatus HandleQuit(const CommandEntry *command, EventLoopContext *context, Client *client,
                          const msg::Message &message)
 {
-    (void)command;
-    (void)context;
     std::string reply;
+    std::string reply_self;
 
-    // TODO: send quit message to all clients that are in the same channel as
-    //       the one quitting
+    reply_self = "ERROR :Closing Link: " + client->user_name + "@" + client->host_name + " (" +
+                 message.parameters[0] + ")";
+    QueueRawReply(client, reply_self);
 
-    reply = "ERROR :Closing Link: " + client->user_name + "@" + client->host_name + " (" +
-            message.parameters[0] + ")";
-    QueueRawReply(client, reply);
+    reply = UserPrefix(client) + " " + command->name + " :" + message.parameters[0];
+    QueueCommonChannelsMessage(context, client, reply, false);
+
     return kContinue;
 }
 
