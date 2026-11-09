@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include "ircs_client.h"
+#include "ircs_channel.h"
 #include "ircs_command.h"
 #include "ircs_event_loop.h"
 #include "ircs_logger.h"
@@ -151,6 +152,7 @@ int AddMemberToChannel(Channel &channel, Client *client)
     Logger(log::kInfo, "", "#%s: %s joined", channel.name.c_str(), client->nick_name.c_str());
     channel.members[client->nick_name] = client;
     channel.joined += 1;
+    client->channels[channel.name] = &channel;
     return channel.joined;
 }
 
