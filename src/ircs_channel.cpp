@@ -113,8 +113,7 @@ std::string ParseChannelName(std::string &name)
     return std::string(channel_name, pos, end);
 }
 
-// There is probably a better way to search in std::map
-Channel *FindChannel(const std::map<std::string, Channel *> &channels, std::string &name)
+Channel *FindChannel(const std::map<std::string, Channel *> &channels, const std::string &name)
 {
     std::string channel_name = NormalizeChannelName(name);
     std::map<std::string, Channel *>::const_iterator it = channels.find(channel_name);
@@ -123,7 +122,7 @@ Channel *FindChannel(const std::map<std::string, Channel *> &channels, std::stri
         return NULL;
     }
 
-    return channels.at(channel_name);
+    return it->second;
 }
 
 Channel *CreateChannel(std::string &channel_name, Client *client)
