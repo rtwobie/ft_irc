@@ -22,7 +22,7 @@ void QueueRawReply(Client *client, const std::string &message)
     client->writebuf.append(message + msg::kCrLf);
 }
 
-void QueueChannelMessage(Channel *channel, const std::string &message,
+void QueueChannelMessage(EventLoopContext *context, Channel *channel, const std::string &message,
                          const std::map<std::string, Client *> &members, Client *except)
 {
     if (!channel)
@@ -31,12 +31,15 @@ void QueueChannelMessage(Channel *channel, const std::string &message,
     for (std::map<std::string, Client *>::const_iterator it = members.begin(); it != members.end();
          ++it) {
         Client *client = it->second;
-        if (client && client != except)
+        if (client && client != except) {
             QueueRawReply(client, message);
+            context->pending_writes.push_back(client->fd);
+        }
     }
 }
 
-void QueueCommonChannelsMessage(Client *client, const std::string &message, bool include_self)
+void QueueCommonChannelsMessage(EventLoopContext *context, Client *client,
+                                const std::string &message, bool include_self)
 {
     if (!client)
         return;
@@ -68,6 +71,7 @@ void QueueCommonChannelsMessage(Client *client, const std::string &message, bool
     for (std::map<int, Client *>::const_iterator it = recipients.begin(); it != recipients.end();
          ++it) {
         QueueRawReply(it->second, message);
+        context->pending_writes.push_back(it->second->fd);
     }
 }
 
