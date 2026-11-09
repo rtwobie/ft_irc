@@ -22,7 +22,7 @@ struct Channel {
 };
 
 std::string ParseChannelName(std::string &name);
-Channel *FindChannel(const std::map<std::string, Channel *> &channels, std::string &name);
+Channel *FindChannel(const std::map<std::string, Channel *> &channels, const std::string &name);
 Channel *CreateChannel(std::string &channel_name, Client *client);
 int AddMemberToChannel(Channel &channel, Client *client);
 void RemoveMemberFromChannel(Channel &channel, Client *client);
