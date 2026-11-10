@@ -13,8 +13,7 @@ const int kMaxChannelNameSize = 50;
 const int kMaxJoinedChannels = 2;  // NOTE: 2 for now; makes testing easier
 
 struct Channel {
-    int joined;
-    int max_members;
+    size_t max_members;
     std::string name;
     std::string topic;
     std::map<std::string, Client *> operators;

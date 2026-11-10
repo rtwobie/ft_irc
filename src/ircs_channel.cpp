@@ -129,7 +129,6 @@ Channel *CreateChannel(std::string &channel_name, Client *client)
 {
     Channel *chan = new Channel;
 
-    chan->joined = 0;
     chan->name = channel_name;
     chan->max_members = kDefaultMaxMembers;
     MakeChannelOperator(*chan, client);
@@ -141,7 +140,7 @@ Channel *CreateChannel(std::string &channel_name, Client *client)
 //          already in the channel; -1 if the channel is full
 int AddMemberToChannel(Channel &channel, Client *client)
 {
-    if (channel.joined == channel.max_members) {
+    if (channel.members.size() == channel.max_members) {
         return -1;
     }
     if (channel.members.find(client->nick_name) != channel.members.end()) {
@@ -150,9 +149,8 @@ int AddMemberToChannel(Channel &channel, Client *client)
 
     Logger(log::kInfo, "", "#%s: %s joined", channel.name.c_str(), client->nick_name.c_str());
     channel.members[client->nick_name] = client;
-    channel.joined += 1;
     client->channels[channel.name] = &channel;
-    return channel.joined;
+    return channel.members.size();
 }
 
 bool IsChannelOperator(const Channel &channel, const std::string &nick)
@@ -214,10 +212,6 @@ void RemoveMemberFromChannel(Channel &channel, Client *client)
         Logger(log::kInfo, "", "#%s: %s has been removed", channel.name.c_str(),
                client->nick_name.c_str());
         channel.members.erase(it);
-    }
-
-    if (channel.joined > 0) {
-        channel.joined -= 1;
     }
 
     return;
