@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <cstring>
 
+#include "ircs_channel.h"
 #include "ircs_client.h"
 #include "ircs_epoll.h"
 #include "ircs_logger.h"
@@ -14,6 +15,9 @@
 
 namespace ircs {
 using log::Logger;
+
+// Bool to stop the server from running
+bool loop_stop = false;
 
 void CloseConnection(EventLoop *event_loop, int fd, void *data)
 {
@@ -99,17 +103,43 @@ void RemoveFileEvent(EventLoop *event_loop, int fd, int delmask, void *data)
     fe->data = data;
 }
 
+void Cleanup(EventLoop *event_loop)
+{
+    EventLoopContext &context = event_loop->context;
+
+    Logger(log::kInfo, "", "cleaning up...");
+    Logger(log::kInfo, "Cleanup", "Open Clients: %d", context.clients.size());
+    std::map<int, Client *>::iterator it = context.clients.begin();
+    while (it != context.clients.end()) {
+        Logger(log::kDebug, "Cleanup", "clear %s", it->second->nick_name.c_str());
+        close(it->second->fd);
+        delete it->second;
+        it++;
+    }
+
+    Logger(log::kInfo, "Cleanup", "Open Channels: %d", context.channels.size());
+    std::map<std::string, Channel *>::iterator ite = context.channels.begin();
+    while (ite != context.channels.end()) {
+        Logger(log::kDebug, "Cleanup", "clear %s", ("#" + ite->second->name).c_str());
+        delete ite->second;
+        ite++;
+    }
+}
+
 int RunEventLoop(EventLoop *event_loop)
 {
     int nfds;
     struct epoll_event ee[kMaxEvents];
 
-    event_loop->stop = false;
-    while (!event_loop->stop) {
+    while (!loop_stop) {
         Logger(log::kDebug, "", "epoll wait");
         if ((nfds = epoll_wait(event_loop->epfd, ee, kMaxEvents, -1)) == -1) {
-            Logger(log::kError, "epoll_wait", strerror(errno));
-            return -1;
+            Cleanup(event_loop);
+            if (errno != EINTR) {
+                Logger(log::kError, "epoll_wait", strerror(errno));
+                return -1;
+            }
+            return 0;
         }
 
         for (int i = 0; i < nfds; i++) {
@@ -133,6 +163,7 @@ int RunEventLoop(EventLoop *event_loop)
             }
         }
     }
+    Cleanup(event_loop);
     return 0;
 }
 

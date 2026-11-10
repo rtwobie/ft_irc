@@ -2,6 +2,7 @@
 
 #include <fcntl.h>
 #include <netdb.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <sys/epoll.h>
 #include <sys/resource.h>
@@ -14,6 +15,7 @@
 #include <iostream>
 
 #include "ircs_event_loop.h"
+#include "ircs_signal.h"
 #include "ircs_listener.h"
 #include "ircs_logger.h"
 
@@ -79,6 +81,14 @@ int main(int argc, char **argv)
     if (CreateFileEvent(&el, listenfd, ircs::kOnReadable, ircs::OnListenerRead, NULL) == -1) {
         return 1;
     }
+
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_sigaction = ircs::signal_handler;
+    sigaction(SIGINT, &sa, NULL);
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
 
     RunEventLoop(&el);
 
