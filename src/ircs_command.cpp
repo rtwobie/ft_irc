@@ -450,6 +450,13 @@ CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context,
             continue;
         }
 
+        if (client->channels.size() == kMaxJoinedChannels) {
+            std::stringstream reply;
+            reply << "#" << channel_name << " :You have joined too many channels";
+            QueueNumericReply(client, kErrTooManyChannels, reply.str());
+            continue;
+        }
+
         Channel *channel = FindChannel(context->channels, channel_name);
         if (channel == NULL) {
             channel = CreateChannel(channel_name, client);
