@@ -161,7 +161,8 @@ bool IsChannelOperator(const Channel &channel, const std::string &nick)
     return true;
 }
 
-bool IsOnChannel(const Channel &channel, const std::string &nick) {
+bool IsOnChannel(const Channel &channel, const std::string &nick)
+{
     if (channel.members.find(nick) == channel.members.end()) {
         return false;
     }
@@ -203,21 +204,16 @@ void RemoveChannelOperator(Channel &channel, Client *client)
 
 void RemoveMemberFromChannel(Channel &channel, Client *client)
 {
-    std::map<std::string, Client *>::iterator it;
-
     RemoveChannelOperator(channel, client);
 
-    it = channel.members.find(client->nick_name);
-    if (it != channel.members.end()) {
-        Logger(log::kInfo, "", "#%s: %s has been removed", channel.name.c_str(),
-               client->nick_name.c_str());
-        channel.members.erase(it);
-    }
-
-    return;
+    Logger(log::kInfo, "", "#%s: %s has been removed", channel.name.c_str(),
+           client->nick_name.c_str());
+    channel.members.erase(client->nick_name);
+    client->channels.erase(channel.name);
 }
 
-void DeleteChannel(std::map<std::string, Channel *> channels, Channel *channel) {
+void DeleteChannel(std::map<std::string, Channel *> channels, Channel *channel)
+{
     delete channels[channel->name];
     channels.erase(channel->name);
 }
