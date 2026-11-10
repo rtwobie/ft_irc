@@ -17,6 +17,7 @@ const char *const kNick = "NICK";
 const char *const kPrivMsg = "PRIVMSG";
 const char *const kPing = "PING";
 const char *const kJoin = "JOIN";
+const char *const kPart = "PART";
 const char *const kOper = "OPER";
 const char *const kMode = "MODE";
 const char *const kQuit = "QUIT";

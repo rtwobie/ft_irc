@@ -436,6 +436,59 @@ CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context,
     return kContinue;
 }
 
+CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context, Client *client,
+                         const msg::Message &message)
+{
+    if (message.param_count < command->min_params) {
+        QueueNumericReply(client, kErrNeedMoreParams, command->name + " :Not enough parameters");
+        return kContinue;
+    }
+
+    // TODO: Part can leave more than kTargMax channels at once, consider
+    //       changing GetRecipients()!
+    std::string channel_names[kTargMax];
+    int number_of_recipients = GetRecipients(channel_names, message.parameters[0]);
+    if (number_of_recipients == -1) {
+        std::ostringstream oss;
+        oss << ":Too many recipients. Only the first ";
+        oss << kTargMax;
+        oss << " will be processed.";
+        QueueNumericReply(client, kErrTooManyTargets, oss.str());
+        return kContinue;
+    }
+
+    for (int i = 0; i < number_of_recipients; i++) {
+        std::string channel_name = ParseChannelName(channel_names[i]);
+        if (channel_name.empty()) {
+            QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+            continue;
+        }
+
+        Channel *channel = FindChannel(context->channels, channel_name);
+        if (channel == NULL) {
+            QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        } else {
+            if (!IsOnChannel(*channel, client->nick_name)) {
+                QueueNumericReply(client, kErrNotOnChannel,
+                                  "#" + channel_name + " :You're not on that channel");
+            }
+
+
+            std::string reply = UserPrefix(client) + " " + command->name + " #" + channel->name;
+            if (message.param_count >= command->max_params && message.has_trailing) {
+                reply += " :" + message.parameters[message.param_count - 1];
+            }
+            QueueChannelMessage(context, channel, reply, NULL);
+            RemoveMemberFromChannel(*channel, client);
+            if (channel->members.empty()) {
+                DeleteChannel(context->channels, channel);
+            }
+        }
+    }
+
+    return kContinue;
+}
+
 // NOTE: Add Commands in this table!
 std::vector<CommandEntry> InitializeCommandTable()
 {
@@ -450,6 +503,7 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kPing, HandlePing, 1, 2});
     table.push_back((CommandEntry){kQuit, HandleQuit, 0, 1});
     table.push_back((CommandEntry){kJoin, HandleJoin, 1, 1});
+    table.push_back((CommandEntry){kPart, HandlePart, 1, 2});
 
     return table;
 }
