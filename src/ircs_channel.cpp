@@ -3,10 +3,9 @@
 #include <map>
 #include <sstream>
 
-#include "ircs_client.h"
 #include "ircs_channel.h"
+#include "ircs_client.h"
 #include "ircs_command.h"
-#include "ircs_event_loop.h"
 #include "ircs_logger.h"
 
 namespace ircs {
@@ -159,6 +158,13 @@ int AddMemberToChannel(Channel &channel, Client *client)
 bool IsChannelOperator(const Channel &channel, const std::string &nick)
 {
     if (channel.operators.find(nick) == channel.operators.end()) {
+        return false;
+    }
+    return true;
+}
+
+bool IsOnChannel(const Channel &channel, const std::string &nick) {
+    if (channel.members.find(nick) == channel.members.end()) {
         return false;
     }
     return true;
