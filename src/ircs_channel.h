@@ -26,6 +26,7 @@ Channel *FindChannel(const std::map<std::string, Channel *> &channels, const std
 Channel *CreateChannel(std::string &channel_name, Client *client);
 int AddMemberToChannel(Channel &channel, Client *client);
 void RemoveMemberFromChannel(Channel &channel, Client *client);
+void DeleteChannel(std::map<std::string, Channel *> channels, Channel *channel);
 int MakeChannelOperator(Channel &channel, Client *client);
 void RemoveChannelOperator(Channel &channel, Client *client);
 bool IsChannelOperator(const Channel &channel, const std::string &nick);

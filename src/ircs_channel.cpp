@@ -203,8 +203,7 @@ void RemoveChannelOperator(Channel &channel, Client *client)
     channel.operators.erase(it);
 }
 
-void RemoveMemberFromChannel(std::map<std::string, Channel *> channels, Channel &channel,
-                             Client *client)
+void RemoveMemberFromChannel(Channel &channel, Client *client)
 {
     std::map<std::string, Client *>::iterator it;
 
@@ -221,12 +220,12 @@ void RemoveMemberFromChannel(std::map<std::string, Channel *> channels, Channel 
         channel.joined -= 1;
     }
 
-    // TODO: move this logic to the calling function
-    if (channel.joined == 0) {
-        delete channels[channel.name];
-        channels.erase(channel.name);
-    }
     return;
+}
+
+void DeleteChannel(std::map<std::string, Channel *> channels, Channel *channel) {
+    delete channels[channel->name];
+    channels.erase(channel->name);
 }
 
 // Gets a string of all nicknames in the list.
