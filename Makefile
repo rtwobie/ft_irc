@@ -35,6 +35,7 @@ ifeq ($(ASAN), 1)
 endif
 
 SRC :=	ircserv.cpp \
+		ircs_channel.cpp \
 		ircs_client.cpp \
 		ircs_client_io.cpp \
 		ircs_command.cpp \

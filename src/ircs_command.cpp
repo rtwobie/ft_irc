@@ -3,6 +3,7 @@
 #include <sstream>
 #include <vector>
 
+#include "ircs_channel.h"
 #include "ircs_client.h"
 #include "ircs_client_io.h"
 #include "ircs_event_loop.h"
@@ -33,6 +34,43 @@ void SendWelcome(Client *client, EventLoopContext *context)
 
     const std::string rpl_myinfo = context->host_name + " " + context->version + " io itkol";
     QueueNumericReply(client, kRplMyInfo, rpl_myinfo);
+}
+
+void SendJoinReplies(EventLoopContext *context, Channel *channel, Client *client)
+{
+    std::string reply;
+    reply += UserPrefix(client) + " ";
+    reply += kJoin;
+    reply += " ";
+    reply += "#" + channel->name;
+
+    std::map<std::string, Client *>::const_iterator it = channel->members.begin();
+    while (it != channel->members.end()) {
+        QueueRawReply(it->second, reply);
+        context->pending_writes.push_back(it->second->fd);
+        ++it;
+    }
+
+    reply.clear();
+    if (channel->topic.empty()) {
+        reply += "#" + channel->name + " ";
+        reply += ":No Topic is set";
+        QueueNumericReply(client, kRplNoTopic, reply);
+    } else {
+        reply += "#" + channel->name + " ";
+        reply += ":" + channel->topic;
+        QueueNumericReply(client, kRplTopic, reply);
+    }
+
+    reply.clear();
+    reply += "= #" + channel->name + " ";
+    reply += ":" + GetNicknameList(*channel);
+    QueueNumericReply(client, kRplNamReply, reply);
+
+    reply.clear();
+    reply += "#" + channel->name + " ";
+    reply += ":End of NAMES list";
+    QueueNumericReply(client, kRplEndOfNames, reply);
 }
 
 CommandStatus HandlePass(const CommandEntry *command, EventLoopContext *context, Client *client,
@@ -106,10 +144,11 @@ CommandStatus HandleNick(const CommandEntry *command, EventLoopContext *context,
     }
 
     // Notify client on nickname change
+    // TODO: Has to broadcast to other clients, that are in the same channels
     if (!client->nick_name.empty()) {
         std::string reply = ":" + client->nick_name + "!" + client->user_name + "@" +
                             client->host_name + " " + command->name + " " + nick_name;
-        QueueRawReply(client, reply);
+        QueueCommonChannelsMessage(context, client, reply, true);
     }
 
     client->nick_name = nick_name;
@@ -181,16 +220,16 @@ CommandStatus HandleUsers(const CommandEntry *command, EventLoopContext *context
 CommandStatus HandleQuit(const CommandEntry *command, EventLoopContext *context, Client *client,
                          const msg::Message &message)
 {
-    (void)command;
-    (void)context;
     std::string reply;
+    std::string reply_self;
 
-    // TODO: send quit message to all clients that are in the same channel as
-    //       the one quitting
+    reply_self = "ERROR :Closing Link: " + client->user_name + "@" + client->host_name + " (" +
+                 message.parameters[0] + ")";
+    QueueRawReply(client, reply_self);
 
-    reply = "ERROR :Closing Link: " + client->user_name + "@" + client->host_name + " (" +
-            message.parameters[0] + ")";
-    QueueRawReply(client, reply);
+    reply = UserPrefix(client) + " " + command->name + " :" + message.parameters[0];
+    QueueCommonChannelsMessage(context, client, reply, false);
+
     return kContinue;
 }
 
@@ -253,7 +292,7 @@ int GetRecipients(std::string recipients[kTargMax], const std::string &s)
         recipients[i] = recipient;
         i++;
     }
-    return 0;
+    return i;
 }
 
 Client *FindClient(std::map<int, Client *> &clients, const std::string &nickname)
@@ -303,13 +342,15 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
     }
 
     // Send the incoming message to the recipients, but add client credentials as a prefix
+    // TODO: refactor: Use UserPrefix instead;
     std::string sender_prefix =
         client->nick_name + "!" + client->user_name + "@" + client->host_name;
     std::string reply = sender_prefix + " " + command->name + " " + message.parameters[0] + " :" +
                         message.parameters[1];
 
     std::string recipients[kTargMax];
-    if (GetRecipients(recipients, message.parameters[0]) == -1) {
+    int number_of_recipients = GetRecipients(recipients, message.parameters[0]);
+    if (number_of_recipients == -1) {
         std::ostringstream oss;
         oss << ":Too many recipients. Only the first ";
         oss << kTargMax;
@@ -318,7 +359,7 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
         return kContinue;
     }
 
-    for (size_t i = 0; i < kTargMax; i++) {
+    for (int i = 0; i < number_of_recipients; i++) {
         // WARN: CURRENT LIMITATION:
         //       Trying to send a message to a channel will report ERR_NOSUCHCHANNEL
         //       as Channels are not implemented yet
@@ -341,13 +382,55 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
 CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context, Client *client,
                          const msg::Message &message)
 {
-    (void)command;
-    (void)context;
-    (void)message;
-
     if (client->state != kClientRegistered) {
         QueueNumericReply(client, kErrNotRegistered, ":You have not registered");
         return kContinue;
+    }
+
+    if (message.param_count < command->min_params) {
+        QueueNumericReply(client, kErrNeedMoreParams, command->name + ":Not enough parameters");
+        return kContinue;
+    }
+
+    // "0" is Special Argument for the JOIN command. It will leave all joined
+    // channels the client is currently active in
+    // TODO:
+    // if (message.parameters[0] == "0") {
+    //     return kContinue;
+    // }
+
+    std::string channel_names[kTargMax];
+    int number_of_recipients = GetRecipients(channel_names, message.parameters[0]);
+    if (number_of_recipients == -1) {
+        std::ostringstream oss;
+        oss << ":Too many recipients. Only the first ";
+        oss << kTargMax;
+        oss << " will be processed.";
+        QueueNumericReply(client, kErrTooManyTargets, oss.str());
+        return kContinue;
+    }
+
+    for (int i = 0; i < number_of_recipients; i++) {
+        std::string channel_name = ParseChannelName(channel_names[i]);
+        if (channel_name.empty()) {
+            QueueNumericReply(client, kErrBadChanMask, "#" + channel_name + " :Bad Channel Name");
+            continue;
+        }
+
+        Channel *channel = FindChannel(context->channels, channel_name);
+        if (channel == NULL) {
+            channel = CreateChannel(channel_name, client);
+            context->channels[channel_name] = channel;
+        } else {
+            if (AddMemberToChannel(*channel, client) == -1) {
+                std::stringstream reply;
+                reply << "#" << channel_name << " :Cannot join channel (+l)";
+                QueueNumericReply(client, kErrChannelIsFull, reply.str());
+                continue;
+            }
+        }
+
+        SendJoinReplies(context, channel, client);
     }
 
     return kContinue;
@@ -405,7 +488,7 @@ msg::ProcessStatus DispatchCommand(EventLoopContext *context, Client *client, ms
     CommandStatus status = cmd->handler(cmd, context, client, message);
 
     if (status == kDisconnect) {
-        return msg::kCloseConnection;  // TO DO: new msg for failure
+        return msg::kCloseConnection;
     }
     return msg::kOk;
 }

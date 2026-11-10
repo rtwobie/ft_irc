@@ -34,6 +34,8 @@ struct Client {
     msg::Message message;
 
     ClientRegistrationState state;
+
+    std::map<std::string, Channel *> channels;
 };
 
 Client *NewClient(int fd, char *ip);
