@@ -212,10 +212,12 @@ void RemoveMemberFromChannel(Channel &channel, Client *client)
     client->channels.erase(channel.name);
 }
 
-void DeleteChannel(std::map<std::string, Channel *> channels, Channel *channel)
+void DeleteChannel(std::map<std::string, Channel *> &channels, Channel *channel)
 {
-    delete channels[channel->name];
+    Channel *chan = channels[channel->name];
+
     channels.erase(channel->name);
+    delete chan;
 }
 
 // Gets a string of all nicknames in the list.
