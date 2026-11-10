@@ -481,6 +481,7 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
             QueueChannelMessage(context, channel, reply, NULL);
             RemoveMemberFromChannel(*channel, client);
             if (channel->members.empty()) {
+                Logger(log::kDebug, "", "%s is empty, closing channel...", channel->name.c_str());
                 DeleteChannel(context->channels, channel);
             }
         }
