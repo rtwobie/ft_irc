@@ -457,6 +457,7 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
         Channel *channel = FindChannel(context->channels, channel_name);
         if (channel == NULL) {
             QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+            continue;
         }
 
         if (!IsOnChannel(*channel, client->nick_name)) {
