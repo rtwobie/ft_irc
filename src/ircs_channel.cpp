@@ -206,6 +206,13 @@ void RemoveMemberFromChannel(Channel &channel, Client *client)
 {
     RemoveChannelOperator(channel, client);
 
+    std::map<std::string, Client *>::iterator it;
+
+    it = channel.members.find(client->nick_name);
+    if (it == channel.members.end()) {
+        return;
+    }
+
     Logger(log::kInfo, "", "#%s: %s has been removed", channel.name.c_str(),
            client->nick_name.c_str());
     channel.members.erase(client->nick_name);
