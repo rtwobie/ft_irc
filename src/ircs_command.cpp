@@ -278,7 +278,7 @@ CommandStatus HandlePing(const CommandEntry *command, EventLoopContext *context,
     return kContinue;
 }
 
-int GetRecipients(std::string recipients[kTargMax], const std::string &s)
+int GetRecipientsFromString(const std::string &s, std::vector<std::string> &recipients)
 {
     std::stringstream ss(s);
     std::string recipient;
@@ -286,10 +286,7 @@ int GetRecipients(std::string recipients[kTargMax], const std::string &s)
 
     int i = 0;
     while (std::getline(ss, recipient, delim)) {
-        if (i >= kTargMax) {
-            return -1;
-        }
-        recipients[i] = recipient;
+        recipients.push_back(recipient);
         i++;
     }
     return i;
@@ -348,18 +345,19 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
     std::string reply = sender_prefix + " " + command->name + " " + message.parameters[0] + " :" +
                         message.parameters[1];
 
-    std::string recipients[kTargMax];
-    int number_of_recipients = GetRecipients(recipients, message.parameters[0]);
-    if (number_of_recipients == -1) {
-        std::ostringstream oss;
-        oss << ":Too many recipients. Only the first ";
-        oss << kTargMax;
-        oss << " will be processed.";
-        QueueNumericReply(client, kErrTooManyTargets, oss.str());
-        return kContinue;
-    }
+    std::vector<std::string> recipients;
+    int number_of_recipients = GetRecipientsFromString(message.parameters[0], recipients);
 
     for (int i = 0; i < number_of_recipients; i++) {
+        if (i >= kTargMax) {
+            std::ostringstream oss;
+            oss << ":Too many recipients. Only the first ";
+            oss << kTargMax;
+            oss << " have been processed.";
+            QueueNumericReply(client, kErrTooManyTargets, oss.str());
+            return kContinue;
+        }
+
         // WARN: CURRENT LIMITATION:
         //       Trying to send a message to a channel will report ERR_NOSUCHCHANNEL
         //       as Channels are not implemented yet
@@ -399,18 +397,19 @@ CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context,
     //     return kContinue;
     // }
 
-    std::string channel_names[kTargMax];
-    int number_of_recipients = GetRecipients(channel_names, message.parameters[0]);
-    if (number_of_recipients == -1) {
-        std::ostringstream oss;
-        oss << ":Too many recipients. Only the first ";
-        oss << kTargMax;
-        oss << " will be processed.";
-        QueueNumericReply(client, kErrTooManyTargets, oss.str());
-        return kContinue;
-    }
+    std::vector<std::string> channel_names;
+    int number_of_recipients = GetRecipientsFromString(message.parameters[0], channel_names);
 
     for (int i = 0; i < number_of_recipients; i++) {
+        if (i >= kTargMax) {
+            std::ostringstream oss;
+            oss << ":Too many recipients. Only the first ";
+            oss << kTargMax;
+            oss << " have been processed.";
+            QueueNumericReply(client, kErrTooManyTargets, oss.str());
+            return kContinue;
+        }
+
         std::string channel_name = ParseChannelName(channel_names[i]);
         if (channel_name.empty()) {
             QueueNumericReply(client, kErrBadChanMask, "#" + channel_name + " :Bad Channel Name");
@@ -421,6 +420,7 @@ CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context,
         if (channel == NULL) {
             channel = CreateChannel(channel_name, client);
             context->channels[channel_name] = channel;
+            Logger(log::kDebug, "", "Open channels: %d", context->channels.size());
         } else {
             if (AddMemberToChannel(*channel, client) == -1) {
                 std::stringstream reply;
@@ -444,18 +444,8 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
         return kContinue;
     }
 
-    // TODO: Part can leave more than kTargMax channels at once, consider
-    //       changing GetRecipients()!
-    std::string channel_names[kTargMax];
-    int number_of_recipients = GetRecipients(channel_names, message.parameters[0]);
-    if (number_of_recipients == -1) {
-        std::ostringstream oss;
-        oss << ":Too many recipients. Only the first ";
-        oss << kTargMax;
-        oss << " will be processed.";
-        QueueNumericReply(client, kErrTooManyTargets, oss.str());
-        return kContinue;
-    }
+    std::vector<std::string> channel_names;
+    int number_of_recipients = GetRecipientsFromString(message.parameters[0], channel_names);
 
     for (int i = 0; i < number_of_recipients; i++) {
         std::string channel_name = ParseChannelName(channel_names[i]);
@@ -467,23 +457,22 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
         Channel *channel = FindChannel(context->channels, channel_name);
         if (channel == NULL) {
             QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
-        } else {
-            if (!IsOnChannel(*channel, client->nick_name)) {
-                QueueNumericReply(client, kErrNotOnChannel,
-                                  "#" + channel_name + " :You're not on that channel");
-            }
+        }
 
+        if (!IsOnChannel(*channel, client->nick_name)) {
+            QueueNumericReply(client, kErrNotOnChannel,
+                              "#" + channel_name + " :You're not on that channel");
+        }
 
-            std::string reply = UserPrefix(client) + " " + command->name + " #" + channel->name;
-            if (message.param_count >= command->max_params && message.has_trailing) {
-                reply += " :" + message.parameters[message.param_count - 1];
-            }
-            QueueChannelMessage(context, channel, reply, NULL);
-            RemoveMemberFromChannel(*channel, client);
-            if (channel->members.empty()) {
-                Logger(log::kDebug, "", "%s is empty, closing channel...", channel->name.c_str());
-                DeleteChannel(context->channels, channel);
-            }
+        std::string reply = UserPrefix(client) + " " + command->name + " #" + channel->name;
+        if (message.param_count >= command->max_params && message.has_trailing) {
+            reply += " :" + message.parameters[message.param_count - 1];
+        }
+        QueueChannelMessage(context, channel, reply, NULL);
+        RemoveMemberFromChannel(*channel, client);
+        if (channel->members.empty()) {
+            Logger(log::kDebug, "", "%s is empty, closing channel...", channel->name.c_str());
+            DeleteChannel(context->channels, channel);
         }
     }
 
