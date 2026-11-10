@@ -12,7 +12,7 @@ std::string UserPrefix(Client *client);
 void QueueRawReply(Client *client, const std::string &message);
 void QueueNumericReply(Client *client, int numeric, const std::string &message);
 void QueueChannelMessage(EventLoopContext *context, Channel *channel, const std::string &message,
-                         const std::map<std::string, Client *> &members, Client *except);
+                         Client *except);
 void QueueCommonChannelsMessage(EventLoopContext *context, Client *client,
                                 const std::string &message, bool include_self);
 

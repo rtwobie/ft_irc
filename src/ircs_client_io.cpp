@@ -23,13 +23,13 @@ void QueueRawReply(Client *client, const std::string &message)
 }
 
 void QueueChannelMessage(EventLoopContext *context, Channel *channel, const std::string &message,
-                         const std::map<std::string, Client *> &members, Client *except)
+                         Client *except)
 {
     if (!channel)
         return;
 
-    for (std::map<std::string, Client *>::const_iterator it = members.begin(); it != members.end();
-         ++it) {
+    for (std::map<std::string, Client *>::const_iterator it = channel->members.begin();
+         it != channel->members.end(); ++it) {
         Client *client = it->second;
         if (client && client != except) {
             QueueRawReply(client, message);
