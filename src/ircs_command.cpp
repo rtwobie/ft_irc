@@ -230,6 +230,17 @@ CommandStatus HandleQuit(const CommandEntry *command, EventLoopContext *context,
     reply = UserPrefix(client) + " " + command->name + " :" + message.parameters[0];
     QueueCommonChannelsMessage(context, client, reply, false);
 
+    // Leave all channels
+    for (std::map<std::string, Channel *>::iterator it = client->channels.begin();
+         it != client->channels.end(); it++) {
+        Channel *channel = it->second;
+        RemoveMemberFromChannel(*channel, client);
+        if (channel->members.empty()) {
+            Logger(log::kDebug, "", "#%s is empty, closing channel...", channel->name.c_str());
+            DeleteChannel(context->channels, channel);
+        }
+    }
+
     return kContinue;
 }
 
