@@ -353,11 +353,7 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
         return kContinue;
     }
 
-    // Send the incoming message to the recipients, but add client credentials as a prefix
-    // TODO: refactor: Use UserPrefix instead;
-    std::string sender_prefix =
-        client->nick_name + "!" + client->user_name + "@" + client->host_name;
-    std::string reply = sender_prefix + " " + command->name + " " + message.parameters[0] + " :" +
+    std::string reply = UserPrefix(client) + " " + command->name + " " + message.parameters[0] + " :" +
                         message.parameters[1];
 
     std::vector<std::string> recipients;
