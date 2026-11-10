@@ -353,12 +353,8 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
         return kContinue;
     }
 
-    // Send the incoming message to the recipients, but add client credentials as a prefix
-    // TODO: refactor: Use UserPrefix instead;
-    std::string sender_prefix =
-        client->nick_name + "!" + client->user_name + "@" + client->host_name;
-    std::string reply = sender_prefix + " " + command->name + " " + message.parameters[0] + " :" +
-                        message.parameters[1];
+    std::string reply = UserPrefix(client) + " " + command->name + " " + message.parameters[0] +
+                        " :" + message.parameters[1];
 
     std::vector<std::string> recipients;
     int number_of_recipients = GetRecipientsFromString(message.parameters[0], recipients);
@@ -373,11 +369,19 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
             return kContinue;
         }
 
-        // WARN: CURRENT LIMITATION:
-        //       Trying to send a message to a channel will report ERR_NOSUCHCHANNEL
-        //       as Channels are not implemented yet
         if (recipients[i][0] == '#') {
-            QueueNumericReply(client, kErrNoSuchChannel, recipients[i] + " :No such channel");
+            std::string channel_name = ParseChannelName(recipients[i]);
+            if (channel_name.empty() ||
+                context->channels.find(channel_name) == context->channels.end()) {
+                QueueNumericReply(client, kErrNoSuchNick, recipients[i] + " :No such nick/channel");
+            }
+
+            // NOTE: that PRIVMSG allows clients to send messages to channels
+            // even if they are not a member of the channel. We only need to
+            // send the ERR_CANNOTSENDTOCHAN message when the channel mode has
+            // been set to +n. But since this project will not have +n as a
+            // feature we don't have to worry about it.
+            QueueChannelMessage(context, context->channels[channel_name], reply, client);
             continue;
         }
         Client *recipient = FindClient(context->clients, recipients[i]);
