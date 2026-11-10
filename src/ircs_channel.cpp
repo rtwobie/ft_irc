@@ -3,10 +3,9 @@
 #include <map>
 #include <sstream>
 
-#include "ircs_client.h"
 #include "ircs_channel.h"
+#include "ircs_client.h"
 #include "ircs_command.h"
-#include "ircs_event_loop.h"
 #include "ircs_logger.h"
 
 namespace ircs {
@@ -130,7 +129,6 @@ Channel *CreateChannel(std::string &channel_name, Client *client)
 {
     Channel *chan = new Channel;
 
-    chan->joined = 0;
     chan->name = channel_name;
     chan->max_members = kDefaultMaxMembers;
     MakeChannelOperator(*chan, client);
@@ -142,7 +140,7 @@ Channel *CreateChannel(std::string &channel_name, Client *client)
 //          already in the channel; -1 if the channel is full
 int AddMemberToChannel(Channel &channel, Client *client)
 {
-    if (channel.joined == channel.max_members) {
+    if (channel.members.size() == channel.max_members) {
         return -1;
     }
     if (channel.members.find(client->nick_name) != channel.members.end()) {
@@ -151,14 +149,21 @@ int AddMemberToChannel(Channel &channel, Client *client)
 
     Logger(log::kInfo, "", "#%s: %s joined", channel.name.c_str(), client->nick_name.c_str());
     channel.members[client->nick_name] = client;
-    channel.joined += 1;
     client->channels[channel.name] = &channel;
-    return channel.joined;
+    return channel.members.size();
 }
 
 bool IsChannelOperator(const Channel &channel, const std::string &nick)
 {
     if (channel.operators.find(nick) == channel.operators.end()) {
+        return false;
+    }
+    return true;
+}
+
+bool IsOnChannel(const Channel &channel, const std::string &nick)
+{
+    if (channel.members.find(nick) == channel.members.end()) {
         return false;
     }
     return true;
@@ -197,30 +202,29 @@ void RemoveChannelOperator(Channel &channel, Client *client)
     channel.operators.erase(it);
 }
 
-void RemoveMemberFromChannel(std::map<std::string, Channel *> channels, Channel &channel,
-                             Client *client)
+void RemoveMemberFromChannel(Channel &channel, Client *client)
 {
-    std::map<std::string, Client *>::iterator it;
-
     RemoveChannelOperator(channel, client);
 
+    std::map<std::string, Client *>::iterator it;
+
     it = channel.members.find(client->nick_name);
-    if (it != channel.members.end()) {
-        Logger(log::kInfo, "", "#%s: %s has been removed", channel.name.c_str(),
-               client->nick_name.c_str());
-        channel.members.erase(it);
+    if (it == channel.members.end()) {
+        return;
     }
 
-    if (channel.joined > 0) {
-        channel.joined -= 1;
-    }
+    Logger(log::kInfo, "", "#%s: %s has been removed", channel.name.c_str(),
+           client->nick_name.c_str());
+    channel.members.erase(client->nick_name);
+    client->channels.erase(channel.name);
+}
 
-    // TODO: move this logic to the calling function
-    if (channel.joined == 0) {
-        delete channels[channel.name];
-        channels.erase(channel.name);
-    }
-    return;
+void DeleteChannel(std::map<std::string, Channel *> &channels, Channel *channel)
+{
+    Channel *chan = channels[channel->name];
+
+    channels.erase(channel->name);
+    delete chan;
 }
 
 // Gets a string of all nicknames in the list.

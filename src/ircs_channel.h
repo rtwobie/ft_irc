@@ -13,8 +13,7 @@ const int kMaxChannelNameSize = 50;
 const int kMaxJoinedChannels = 2;  // NOTE: 2 for now; makes testing easier
 
 struct Channel {
-    int joined;
-    int max_members;
+    size_t max_members;
     std::string name;
     std::string topic;
     std::map<std::string, Client *> operators;
@@ -26,9 +25,11 @@ Channel *FindChannel(const std::map<std::string, Channel *> &channels, const std
 Channel *CreateChannel(std::string &channel_name, Client *client);
 int AddMemberToChannel(Channel &channel, Client *client);
 void RemoveMemberFromChannel(Channel &channel, Client *client);
+void DeleteChannel(std::map<std::string, Channel *> &channels, Channel *channel);
 int MakeChannelOperator(Channel &channel, Client *client);
 void RemoveChannelOperator(Channel &channel, Client *client);
 bool IsChannelOperator(const Channel &channel, const std::string &nick);
+bool IsOnChannel(const Channel &channel, const std::string &nick);
 std::string GetNicknameList(Channel &channel);
 
 }  // namespace ircs
