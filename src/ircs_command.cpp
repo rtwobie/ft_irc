@@ -392,10 +392,22 @@ CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context,
 
     // "0" is Special Argument for the JOIN command. It will leave all joined
     // channels the client is currently active in
-    // TODO:
-    // if (message.parameters[0] == "0") {
-    //     return kContinue;
-    // }
+    if (message.parameters[0] == "0") {
+        for (std::map<std::string, Channel *>::iterator it = client->channels.begin();
+             it != client->channels.end(); it++) {
+            Channel *channel = it->second;
+
+            std::string reply = UserPrefix(client) + " " + kPart + " " + channel->name;
+            QueueChannelMessage(context, channel, reply, NULL);
+
+            RemoveMemberFromChannel(*channel, client);
+            if (channel->members.empty()) {
+                Logger(log::kDebug, "", "#%s is empty, closing channel...", channel->name.c_str());
+                DeleteChannel(context->channels, channel);
+            }
+        }
+        return kContinue;
+    }
 
     std::vector<std::string> channel_names;
     int number_of_recipients = GetRecipientsFromString(message.parameters[0], channel_names);
@@ -472,7 +484,7 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
         QueueChannelMessage(context, channel, reply, NULL);
         RemoveMemberFromChannel(*channel, client);
         if (channel->members.empty()) {
-            Logger(log::kDebug, "", "%s is empty, closing channel...", channel->name.c_str());
+            Logger(log::kDebug, "", "#%s is empty, closing channel...", channel->name.c_str());
             DeleteChannel(context->channels, channel);
         }
     }
