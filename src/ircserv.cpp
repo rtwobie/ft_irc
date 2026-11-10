@@ -70,7 +70,6 @@ int main(int argc, char **argv)
     ircs::EventLoop el = ircs::EventLoop();
     el.epfd = epfd;
     el.listenfd = listenfd;
-    el.stop = false;
 
     el.context.host_name = kServerName;
     el.context.version = kServerVersion;
