@@ -232,8 +232,12 @@ CommandStatus HandleQuit(const CommandEntry *command, EventLoopContext *context,
 
     // Leave all channels
     for (std::map<std::string, Channel *>::iterator it = client->channels.begin();
-         it != client->channels.end(); it++) {
+         it != client->channels.end();) {
         Channel *channel = it->second;
+
+        // Iterate first so it doesn't get invalidated
+        ++it;
+
         RemoveMemberFromChannel(*channel, client);
         if (channel->members.empty()) {
             Logger(log::kDebug, "", "#%s is empty, closing channel...", channel->name.c_str());
@@ -405,8 +409,11 @@ CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context,
     // channels the client is currently active in
     if (message.parameters[0] == "0") {
         for (std::map<std::string, Channel *>::iterator it = client->channels.begin();
-             it != client->channels.end(); it++) {
+             it != client->channels.end();) {
             Channel *channel = it->second;
+
+            // Iterate first so it doesn't get invalidated
+            ++it;
 
             std::string reply = UserPrefix(client) + " " + kPart + " " + channel->name;
             QueueChannelMessage(context, channel, reply, NULL);
