@@ -1,11 +1,12 @@
 #include "ircs_channel.h"
 
+#include <stdint.h>
+
 #include <map>
 #include <sstream>
 
 #include "ircs_channel.h"
 #include "ircs_client.h"
-#include "ircs_command.h"
 #include "ircs_logger.h"
 
 namespace ircs {
@@ -56,21 +57,80 @@ const unsigned char touppertab[256] = {
 };
 // clang-format on
 
-int GetChannelName(std::string recipients[kTargMax], const std::string &s)
+std::vector<ChannelMode> InitializeModesTab()
 {
-    std::stringstream ss(s);
-    std::string recipient;
-    const char delim = ',';
+    std::vector<ChannelMode> tab;
 
-    int i = 0;
-    while (std::getline(ss, recipient, delim)) {
-        if (i >= kTargMax) {
-            return -1;
+    tab.push_back((ChannelMode){kChanModeInviteOnly, kChanModeInviteOnlyIdentifier});
+    tab.push_back((ChannelMode){kChanModeTopic, kChanModeTopicIdentifier});
+    tab.push_back((ChannelMode){kChanModeKey, kChanModeKeyIdentifier});
+    tab.push_back((ChannelMode){kChanModeLimit, kChanModeLimitIdentifier});
+
+    return tab;
+}
+
+const std::vector<ChannelMode> kAvailableModesTab = InitializeModesTab();
+
+std::string GetChannelModesAndParams(Channel &channel)
+{
+    std::ostringstream oss;
+
+    oss << '+';
+
+    for (size_t i = 0; i < kAvailableModesTab.size(); i++) {
+        if (channel.modes & kAvailableModesTab[i].mask) {
+            oss << kAvailableModesTab[i].identifier;
         }
-        recipients[i] = recipient;
-        i++;
     }
+
+    if (channel.modes & kChanModeKey) {
+        oss << ' ' << channel.key;
+    }
+
+    if (channel.modes & kChanModeLimit) {
+        oss << ' ' << channel.max_members;
+    }
+
+    return oss.str();
+}
+
+int AddChannelMode(Channel &channel, char identifier)
+{
+    bool mode_exist = false;
+
+    size_t i = 0;
+    while (i < kAvailableModesTab.size()) {
+        if (identifier == kAvailableModesTab[i].identifier) {
+            mode_exist = true;
+            break;
+        }
+        ++i;
+    }
+
+    if (mode_exist == false) {
+        return -1;
+    }
+
+    channel.modes &= kAvailableModesTab[i].mask;
     return 0;
+}
+
+void AddChannelMode(Channel &channel, uint32_t mask)
+{
+    channel.modes &= mask;
+}
+
+void RemoveChannelMode(Channel &channel, uint32_t delmask)
+{
+    // TODO: Move logic to the caller
+    // if (delmask & kChanModeKey) {
+    //     channel.key.clear();
+    // }
+    // if (delmask & kChanModeLimit) {
+    //     channel.max_members = kDefaultMaxMembers;
+    // }
+
+    channel.modes &= (~delmask);
 }
 
 // Since Channel Names in IRC are case insensitive the name will be lowercased,
@@ -86,7 +146,7 @@ std::string NormalizeChannelName(const std::string &name)
 }
 
 // returns empty if unsuccessful
-std::string ParseChannelName(std::string &name)
+std::string ParseChannelName(const std::string &name)
 {
     size_t pos = 0;
     size_t end = name.length();
