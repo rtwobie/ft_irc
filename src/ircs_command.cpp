@@ -521,6 +521,37 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
     return kContinue;
 }
 
+CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *conext, Client *client,
+                         const msg::Message &message)
+{
+    if (message.param_count < command->min_params) {
+        QueueNumericReply(client, kErrNeedMoreParams, command->name + " :Not enough parameters");
+        return kContinue;
+    }
+
+    if (!FindChannel(context->channels, message.parameters[0])) {
+        QueueNumericReply(client, kErrNoSuchChannel, command->name + " :No such channel");
+        return kContinue;
+    }
+
+    for (std::map<std::string, Channel *>::const_iterator cit = client->channels.begin();
+         cit != client->channels.end(); ++cit) {
+        if (cit->second->name == message.parameters[0]) {
+            Channel *channel = cit->second;
+            if (message.parameters[1].empty()) {
+                std::string reply =
+                    client->nick_name + " " + channel->name + " +" +
+                    channel->modes;  // TO DO: channel->modes should write all modes for numeric
+                                     // reply !!!! (if no modes: only '+')
+                QueueNumericReply(client, kRplChannelModeis, reply);
+            }
+            continue;
+        }
+        QueueNumericReply(client, kErrNotOnChannel, command->name + " :You're not on that channel");
+        return kContinue;
+    }
+}
+
 // NOTE: Add Commands in this table!
 std::vector<CommandEntry> InitializeCommandTable()
 {
@@ -536,6 +567,7 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kQuit, HandleQuit, 0, 1});
     table.push_back((CommandEntry){kJoin, HandleJoin, 1, 1});
     table.push_back((CommandEntry){kPart, HandlePart, 1, 2});
+    table.push_back((CommandEntry){kMode, HandleMode, 2, 5});
 
     return table;
 }

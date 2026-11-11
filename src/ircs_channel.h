@@ -18,6 +18,7 @@ struct Channel {
     std::string topic;
     std::map<std::string, Client *> operators;
     std::map<std::string, Client *> members;
+    int modes;
 };
 
 std::string ParseChannelName(std::string &name);
