@@ -560,7 +560,9 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
         return kContinue;
     }
 
+    std::string nick_name = message.parameters[0];
     std::string channel_name = ParseChannelName(message.parameters[1]);
+
     if (channel_name.empty()) {
         QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
         return kContinue;
@@ -571,6 +573,42 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
         QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
         return kContinue;
     }
+
+    for (std::map<int, Client *>::iterator it = context->clients.begin();
+         it != context->clients.end(); ++it) {
+        if (it->second->nick_name == nick_name) {
+            continue;
+        }
+        if (it == context->clients.end()) {
+            QueueNumericReply(client, kErrNoSuchNick, nick_name + " :No such nick/channel");
+            return kContinue;
+        }
+    }
+
+    for (std::map<std::string, Client *>::const_iterator cit = channel->members.begin();
+         cit != channel->members.end(); ++cit) {
+        if (cit->second->nick_name == client->nick_name) {
+            continue;
+        }
+        if (cit == channel->members.end()) {
+            QueueNumericReply(
+                client, kErrNotOnChannel,
+                client->nick_name + " " + channel_name + " :You're not on that channel");
+            return kContinue;
+        }
+    }
+
+    Channel *channel_host = FindChannel(client->channels, channel_name);
+    if (channel == NULL) {
+        QueueNumericReply(client, kErrNotOnChannel,
+                          client->nick_name + " " + channel_name + " :You're not on that channel");
+        return kContinue;
+    }
+
+    // TO DO: FinderMember Funktion
+    QueueNumericReply(
+        client, kErrUserOnChannel,
+        client->nick_name + " " + nick_name + " " + channel_name + " :is already on channel");
 }
 
 // NOTE: Add Commands in this table!
