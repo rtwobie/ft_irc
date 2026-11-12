@@ -140,13 +140,13 @@ int AddChannelMode(Channel &channel, char identifier)
         return -1;
     }
 
-    channel.modes &= kAvailableModesTab[i].mask;
+    channel.modes |= kAvailableModesTab[i].mask;
     return 0;
 }
 
 void AddChannelMode(Channel &channel, uint32_t mask)
 {
-    channel.modes &= mask;
+    channel.modes |= mask;
 }
 
 int RemoveChannelMode(Channel &channel, char identifier)
