@@ -524,7 +524,7 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
     return kContinue;
 }
 
-void ProcessChannelModes(Channel &channel, Client *client, const std::string &modes,
+std::string ProcessChannelModes(Channel &channel, Client *client, const std::string &modes,
                          const std::string *message_parameters, int param_count)
 {
     //    Numeric Replies:
@@ -536,6 +536,8 @@ void ProcessChannelModes(Channel &channel, Client *client, const std::string &mo
     // RPL_EXCEPTLIST                  RPL_ENDOFEXCEPTLIST
     // RPL_INVITELIST                  RPL_ENDOFINVITELIST
     // RPL_UNIQOPIS
+    std::string modes_that_changed;
+    std::string params_that_were_used;
 
     bool add_mode = true;
     int consumed_params = 0;
@@ -543,36 +545,40 @@ void ProcessChannelModes(Channel &channel, Client *client, const std::string &mo
     for (size_t i = 0; i < modes.size(); i++) {
         if (modes[i] == '-') {
             add_mode = false;
+            modes_that_changed += modes[i];
             continue;
         }
         if (modes[i] == '+') {
             add_mode = true;
+            modes_that_changed += modes[i];
             continue;
         }
 
-        if (!DoesChannelModeExist(modes[i])) {
+        if (!DoesChannelModeExist(modes[i]) && modes[i] != kChanModeOperatorIdentifier) {
             QueueNumericReply(
                 client, kErrUnknownMode,
                 std::string(1, modes[i]) + " :is unknown mode char to me for #" + channel.name);
             continue;
         }
 
-        // If the client tries to add a mode and doesnt add a corresponding
-        // parameter, ignore it
-        if (add_mode && NeedsChannelModeParameter(modes[i]) &&
-            message_parameters[consumed_params].empty()) {
-            Logger(log::kDebug, "Channel", "#%s: ignored mode %c", channel.name.c_str(), modes[i]);
-            continue;
-        }
-        if (add_mode && NeedsChannelModeParameter(modes[i]) && consumed_params >= param_count) {
-            Logger(log::kDebug, "Channel", "#%s: ignored mode %c", channel.name.c_str(), modes[i]);
-            continue;
+        // If the client tries to add a channel mode or add/remove an operator
+        // and doesnt add a corresponding parameter, ignore it
+        if (add_mode || modes[i] == kChanModeOperatorIdentifier) {
+            if (NeedsChannelModeParameter(modes[i]) &&
+                (message_parameters[consumed_params].empty() || consumed_params >= param_count)) {
+                Logger(log::kDebug, "Channel", "#%s: ignored mode %c", channel.name.c_str(),
+                       modes[i]);
+                continue;
+            }
         }
 
         if (add_mode) {
             Logger(log::kDebug, "Channel", "#%s: adding mode %c", channel.name.c_str(), modes[i]);
             if (modes[i] == kChanModeKeyIdentifier) {
                 channel.key = message_parameters[consumed_params];
+
+                params_that_were_used += " " + channel.key;
+
                 ++consumed_params;
                 Logger(log::kDebug, "Channel", "#%s: with key: %s", channel.name.c_str(),
                        channel.key.c_str());
@@ -583,24 +589,59 @@ void ProcessChannelModes(Channel &channel, Client *client, const std::string &mo
                     continue;
                 }
                 channel.max_members = n;
+
+                params_that_were_used += " " + message_parameters[consumed_params];
+
                 ++consumed_params;
                 Logger(log::kDebug, "Channel", "#%s: with limit: %d", channel.name.c_str(),
                        channel.max_members);
             } else if (modes[i] == kChanModeOperatorIdentifier) {
-                // TODO: add giving operator; test in testnet.ergo.chat
+                const std::string &nick = message_parameters[consumed_params];
                 ++consumed_params;
+
+                if (!IsOnChannel(channel, nick)) {
+                    QueueNumericReply(
+                        client, kErrUserNotInChannel,
+                        nick + " " + '#' + channel.name + " :They aren't on that channel");
+                    continue;
+                }
+
+                modes_that_changed += modes[i];
+                params_that_were_used += " " + nick;
+
+                MakeChannelOperator(channel, channel.members[nick]);
+                continue;
             }
+            modes_that_changed += modes[i];
             AddChannelMode(channel, modes[i]);
         } else {
             if (modes[i] == kChanModeKeyIdentifier) {
                 channel.key.clear();
             } else if (modes[i] == kChanModeLimitIdentifier) {
                 channel.max_members = kDefaultMaxMembers;
+            } else if (modes[i] == kChanModeOperatorIdentifier) {
+                const std::string &nick = message_parameters[consumed_params];
+                ++consumed_params;
+
+                if (!IsOnChannel(channel, nick)) {
+                    QueueNumericReply(
+                        client, kErrUserNotInChannel,
+                        nick + " " + '#' + channel.name + " :They aren't on that channel");
+                    continue;
+                }
+
+                modes_that_changed += modes[i];
+                params_that_were_used += " " + nick;
+
+                RemoveChannelOperator(channel, channel.members[nick]);
+                continue;
             }
             Logger(log::kDebug, "Channel", "#%s: removing mode %c", channel.name.c_str(), modes[i]);
+            modes_that_changed += modes[i];
             RemoveChannelMode(channel, modes[i]);
         }
     }
+    return modes_that_changed + params_that_were_used;
 }
 
 CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *context, Client *client,
@@ -652,11 +693,12 @@ CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *context,
         return kContinue;
     }
 
-    ProcessChannelModes(*channel, client, message.parameters[1], message.parameters + 2,
-                        message.param_count - 2);
+    std::string changes = ProcessChannelModes(*channel, client, message.parameters[1],
+                                              message.parameters + 2, message.param_count - 2);
 
-    std::string reply = "#" + channel->name + " " + GetChannelModesAndParams(*channel);
-    QueueNumericReply(client, kRplChannelModeIs, reply);
+    std::string reply =
+        UserPrefix(client) + " " + command->name + " #" + channel->name + " " + changes;
+    QueueChannelMessage(context, channel, reply, NULL);
 
     return kContinue;
 }
