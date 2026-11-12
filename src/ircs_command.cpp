@@ -539,10 +539,7 @@ CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *context,
         if (cit->second->name == message.parameters[0]) {
             Channel *channel = cit->second;
             if (message.parameters[1].empty()) {
-                std::string reply =
-                    client->nick_name + " " + channel->name + " +" +
-                    channel->modes;  // TO DO: channel->modes should write all modes for numeric
-                                     // reply !!!! (if no modes: only '+')
+                std::string reply = client->nick_name + " " + channel->name + " +";
                 QueueNumericReply(client, kRplChannelModeis, reply);
             }
             continue;
@@ -550,6 +547,7 @@ CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *context,
         QueueNumericReply(client, kErrNotOnChannel, command->name + " :You're not on that channel");
         return kContinue;
     }
+    return kContinue;
 }
 
 Client *FindMember(const Channel *channel, const int fd)
@@ -687,6 +685,58 @@ CommandStatus HandleKick(const CommandEntry *command, EventLoopContext *context,
     return kContinue;
 }
 
+CommandStatus HandleTopic(const CommandEntry *command, EventLoopContext *context, Client *client,
+                          const msg::Message &message)
+{
+    if (message.param_count < command->min_params) {
+        QueueNumericReply(client, kErrNeedMoreParams, command->name + " :Not enough parameters");
+        return kContinue;
+    }
+
+    std::string channel_name = ParseChannelName(message.parameters[0]);
+
+    if (channel_name.empty()) {
+        QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    Channel *channel = FindChannel(context->channels, channel_name);
+    if (channel == NULL) {
+        QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    if (FindMember(channel, client->fd) == NULL) {
+        QueueNumericReply(client, kErrNotOnChannel,
+                          client->nick_name + " " + channel_name + " :You're not on that channel");
+        return kContinue;
+    }
+
+    if (message.param_count == 1 || (message.param_count >= 2 && message.parameters[1].empty())) {
+        if (channel->topic.empty()) {
+            QueueNumericReply(client, kRplNoTopic, "#" + channel_name + " :No topic is set");
+        } else {
+            QueueNumericReply(client, kRplTopic, "#" + channel_name + " :" + channel->topic);
+        }
+        return kContinue;
+    }
+
+    if ((channel->modes & kChanModeTopic) != 0) {
+        if (channel->operators.find(client->nick_name) == channel->operators.end()) {
+            QueueNumericReply(client, kErrChanOpRivsNeeded,
+                              channel_name + " :You're not channel operator");
+            return kContinue;
+        }
+    }
+
+    channel->topic = message.parameters[1];
+
+    std::string topic_msg = UserPrefix(client) + " TOPIC #" + channel_name + " :" + channel->topic;
+    QueueChannelMessage(context, channel, topic_msg, NULL);
+
+    return kContinue;
+}
+
 // NOTE: Add Commands in this table!
 std::vector<CommandEntry> InitializeCommandTable()
 {
@@ -704,6 +754,8 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kPart, HandlePart, 1, 2});
     table.push_back((CommandEntry){kMode, HandleMode, 2, 5});
     table.push_back((CommandEntry){kInvite, HandleInvite, 1, 3});
+    table.push_back((CommandEntry){kKick, HandleKick, 1, 3});
+    table.push_back((CommandEntry){kTopic, HandleTopic, 1, 2});
 
     return table;
 }

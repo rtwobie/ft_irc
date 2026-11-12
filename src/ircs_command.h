@@ -24,6 +24,8 @@ const char *const kInvite = "INVITE";
 const char *const kQuit = "QUIT";
 const char *const kUsers = "USERS";
 const char *const kSummon = "SUMMON";
+const char *const kKick = "KICK";
+const char *const kTopic = "TOPIC";
 
 // IRC Error Codes
 // Error replies (400 to 599)
