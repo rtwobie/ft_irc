@@ -32,7 +32,8 @@ void SendWelcome(Client *client, EventLoopContext *context)
     const std::string rpl_created = "This server was created " + context->creation_date;
     QueueNumericReply(client, kRplCreated, rpl_created);
 
-    const std::string rpl_myinfo = context->host_name + " " + context->version + " io itkol";
+    // '-' as don't support any user modes
+    const std::string rpl_myinfo = context->host_name + " " + context->version + " - itkol";
     QueueNumericReply(client, kRplMyInfo, rpl_myinfo);
 }
 
