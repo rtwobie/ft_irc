@@ -32,7 +32,7 @@ enum NumericReplies {
     kRplCreated = 003,
     kRplMyInfo = 004,
 
-    kRplChannelModeis = 324,
+    kRplChannelModeIs = 324,
     kRplNoTopic = 331,
     kRplTopic = 332,
     kRplNamReply = 353,

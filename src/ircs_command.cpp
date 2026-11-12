@@ -1,5 +1,7 @@
 #include "ircs_command.h"
 
+#include <stdlib.h>
+
 #include <sstream>
 #include <vector>
 
@@ -522,7 +524,86 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
     return kContinue;
 }
 
-CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *conext, Client *client,
+void ProcessChannelModes(Channel &channel, Client *client, const std::string &modes,
+                         const std::string *message_parameters, int param_count)
+{
+    //    Numeric Replies:
+    // ERR_NEEDMOREPARAMS              ERR_KEYSET
+    // ERR_NOCHANMODES                 ERR_CHANOPRIVSNEEDED
+    // ERR_USERNOTINCHANNEL            ERR_UNKNOWNMODE
+    // RPL_CHANNELMODEIS
+    // RPL_BANLIST                     RPL_ENDOFBANLIST
+    // RPL_EXCEPTLIST                  RPL_ENDOFEXCEPTLIST
+    // RPL_INVITELIST                  RPL_ENDOFINVITELIST
+    // RPL_UNIQOPIS
+
+    bool add_mode = true;
+    int consumed_params = 0;
+
+    for (size_t i = 0; i < modes.size(); i++) {
+        if (modes[i] == '-') {
+            add_mode = false;
+            continue;
+        }
+        if (modes[i] == '+') {
+            add_mode = true;
+            continue;
+        }
+
+        if (!DoesChannelModeExist(modes[i])) {
+            QueueNumericReply(
+                client, kErrUnknownMode,
+                std::string(1, modes[i]) + " :is unknown mode char to me for #" + channel.name);
+            continue;
+        }
+
+        // If the client tries to add a mode and doesnt add a corresponding
+        // parameter, ignore it
+        if (add_mode && NeedsChannelModeParameter(modes[i]) &&
+            message_parameters[consumed_params].empty()) {
+            Logger(log::kDebug, "Channel", "#%s: ignored mode %c", channel.name.c_str(), modes[i]);
+            continue;
+        }
+        if (add_mode && NeedsChannelModeParameter(modes[i]) && consumed_params >= param_count) {
+            Logger(log::kDebug, "Channel", "#%s: ignored mode %c", channel.name.c_str(), modes[i]);
+            continue;
+        }
+
+        if (add_mode) {
+            Logger(log::kDebug, "Channel", "#%s: adding mode %c", channel.name.c_str(), modes[i]);
+            if (modes[i] == kChanModeKeyIdentifier) {
+                channel.key = message_parameters[consumed_params];
+                ++consumed_params;
+                Logger(log::kDebug, "Channel", "#%s: with key: %s", channel.name.c_str(),
+                       channel.key.c_str());
+            } else if (modes[i] == kChanModeLimitIdentifier) {
+                long n = std::strtol(message_parameters[consumed_params].c_str(), NULL, 10);
+                if (n < 1 || n >= kDefaultMaxMembers) {
+                    ++consumed_params;
+                    continue;
+                }
+                channel.max_members = n;
+                ++consumed_params;
+                Logger(log::kDebug, "Channel", "#%s: with limit: %d", channel.name.c_str(),
+                       channel.max_members);
+            } else if (modes[i] == kChanModeOperatorIdentifier) {
+                // TODO: add giving operator; test in testnet.ergo.chat
+                ++consumed_params;
+            }
+            AddChannelMode(channel, modes[i]);
+        } else {
+            if (modes[i] == kChanModeKeyIdentifier) {
+                channel.key.clear();
+            } else if (modes[i] == kChanModeLimitIdentifier) {
+                channel.max_members = kDefaultMaxMembers;
+            }
+            Logger(log::kDebug, "Channel", "#%s: removing mode %c", channel.name.c_str(), modes[i]);
+            RemoveChannelMode(channel, modes[i]);
+        }
+    }
+}
+
+CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *context, Client *client,
                          const msg::Message &message)
 {
     if (message.param_count < command->min_params) {
@@ -530,27 +611,54 @@ CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *conext, 
         return kContinue;
     }
 
-    if (!FindChannel(context->channels, message.parameters[0])) {
-        QueueNumericReply(client, kErrNoSuchChannel, command->name + " :No such channel");
+    // NOTE: that we dont handle MODE in user mode so we ignore it by sending
+    // ERR_NOSUCHNICK when the argument doesn't start with a '#'.
+    if (message.parameters[0][0] != '#') {
+        Logger(log::kWarning, "", "No support for MODE in user mode");
+        QueueNumericReply(client, kErrNoSuchNick, message.parameters[0] + " :No such nick/channel");
         return kContinue;
     }
 
-    for (std::map<std::string, Channel *>::const_iterator cit = client->channels.begin();
-         cit != client->channels.end(); ++cit) {
-        if (cit->second->name == message.parameters[0]) {
-            Channel *channel = cit->second;
-            if (message.parameters[1].empty()) {
-                std::string reply =
-                    client->nick_name + " " + channel->name + " +" +
-                    channel->modes;  // TO DO: channel->modes should write all modes for numeric
-                                     // reply !!!! (if no modes: only '+')
-                QueueNumericReply(client, kRplChannelModeis, reply);
-            }
-            continue;
-        }
-        QueueNumericReply(client, kErrNotOnChannel, command->name + " :You're not on that channel");
+    std::string channel_name = ParseChannelName(message.parameters[0]);
+    if (channel_name.empty()) {
+        QueueNumericReply(client, kErrNoSuchChannel, '#' + channel_name + " :No such channel");
         return kContinue;
     }
+
+    Channel *channel = FindChannel(context->channels, channel_name);
+    if (channel == NULL) {
+        QueueNumericReply(client, kErrNoSuchChannel, '#' + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    if (!IsOnChannel(*channel, client->nick_name)) {
+        QueueNumericReply(client, kErrNotOnChannel,
+                          '#' + channel->name + " :You're not on that channel");
+        return kContinue;
+    }
+
+    // NOTE: that if the client doesnt specify an argument with the MODE command
+    // we just return what modes are available.
+    // (e.g. `MODE #channel +`, `MODE #channel +itkl secretkey 5`)
+    if (message.parameters[1].empty()) {
+        std::string reply = "#" + channel->name + " " + GetChannelModesAndParams(*channel);
+        QueueNumericReply(client, kRplChannelModeIs, reply);
+        return kContinue;
+    }
+
+    if (!IsChannelOperator(*channel, client->nick_name)) {
+        QueueNumericReply(client, kErrChanOpRivsNeeded,
+                          '#' + channel->name + " :You're not channel operator");
+        return kContinue;
+    }
+
+    ProcessChannelModes(*channel, client, message.parameters[1], message.parameters + 2,
+                        message.param_count - 2);
+
+    std::string reply = "#" + channel->name + " " + GetChannelModesAndParams(*channel);
+    QueueNumericReply(client, kRplChannelModeIs, reply);
+
+    return kContinue;
 }
 
 // NOTE: Add Commands in this table!
@@ -568,7 +676,7 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kQuit, HandleQuit, 0, 1});
     table.push_back((CommandEntry){kJoin, HandleJoin, 1, 1});
     table.push_back((CommandEntry){kPart, HandlePart, 1, 2});
-    table.push_back((CommandEntry){kMode, HandleMode, 2, 5});
+    table.push_back((CommandEntry){kMode, HandleMode, 1, 15});
 
     return table;
 }
