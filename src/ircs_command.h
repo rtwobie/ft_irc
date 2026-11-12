@@ -35,6 +35,7 @@ enum NumericReplies {
     kRplChannelModeis = 324,
     kRplNoTopic = 331,
     kRplTopic = 332,
+    kRplInviting = 341,
     kRplNamReply = 353,
     kRplEndOfNames = 366,
 

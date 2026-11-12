@@ -552,6 +552,19 @@ CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *context,
     }
 }
 
+Client *FindMember(const Channel *channel, const int fd)
+{
+    std::map<std::string, Client *>::const_iterator it = channel->members.begin();
+
+    while (it != channel->members.end()) {
+        if (it->second->fd == fd) {
+            return it->second;
+        }
+        it++;
+    }
+    return NULL;
+}
+
 CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *context, Client *client,
                            const msg::Message &message)
 {
@@ -574,41 +587,37 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
         return kContinue;
     }
 
-    for (std::map<int, Client *>::iterator it = context->clients.begin();
-         it != context->clients.end(); ++it) {
-        if (it->second->nick_name == nick_name) {
-            continue;
-        }
-        if (it == context->clients.end()) {
-            QueueNumericReply(client, kErrNoSuchNick, nick_name + " :No such nick/channel");
-            return kContinue;
-        }
+    Client *target = FindClient(context->clients, nick_name);
+    if (target == NULL) {
+        QueueNumericReply(client, kErrNoSuchNick, nick_name + " :No such nick/channel");
+        return kContinue;
     }
 
-    for (std::map<std::string, Client *>::const_iterator cit = channel->members.begin();
-         cit != channel->members.end(); ++cit) {
-        if (cit->second->nick_name == client->nick_name) {
-            continue;
-        }
-        if (cit == channel->members.end()) {
-            QueueNumericReply(
-                client, kErrNotOnChannel,
-                client->nick_name + " " + channel_name + " :You're not on that channel");
-            return kContinue;
-        }
-    }
-
-    Channel *channel_host = FindChannel(client->channels, channel_name);
-    if (channel == NULL) {
+    if (FindMember(channel, client->fd) == NULL) {
         QueueNumericReply(client, kErrNotOnChannel,
                           client->nick_name + " " + channel_name + " :You're not on that channel");
         return kContinue;
     }
 
-    // TO DO: FinderMember Funktion
-    QueueNumericReply(
-        client, kErrUserOnChannel,
-        client->nick_name + " " + nick_name + " " + channel_name + " :is already on channel");
+    if (FindMember(channel, target->fd) != NULL) {
+        QueueNumericReply(
+            client, kErrUserOnChannel,
+            client->nick_name + " " + nick_name + " " + channel_name + " :is already on channel");
+        return kContinue;
+    }
+
+    if ((channel->modes & kChanModeInviteOnly) != 0) {
+        if (channel->operators.find(client->nick_name) == channel->operators.end()) {
+            QueueNumericReply(client, kErrChanOpRivsNeeded,
+                              channel_name + " :You're not channel operator");
+            return kContinue;
+        }
+    }
+
+    QueueNumericReply(target, kRplInviting,
+                      client->nick_name + " " + target->nick_name + " " + channel_name);
+
+    return kContinue;
 }
 
 // NOTE: Add Commands in this table!
