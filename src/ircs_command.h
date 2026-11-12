@@ -20,6 +20,7 @@ const char *const kJoin = "JOIN";
 const char *const kPart = "PART";
 const char *const kOper = "OPER";
 const char *const kMode = "MODE";
+const char *const kInvite = "INVITE";
 const char *const kQuit = "QUIT";
 const char *const kUsers = "USERS";
 const char *const kSummon = "SUMMON";

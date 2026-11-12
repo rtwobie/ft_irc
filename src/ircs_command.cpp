@@ -620,6 +620,73 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
     return kContinue;
 }
 
+CommandStatus HandleKick(const CommandEntry *command, EventLoopContext *context, Client *client,
+                         const msg::Message &message)
+{
+    if (message.param_count < command->min_params) {
+        QueueNumericReply(client, kErrNeedMoreParams, command->name + " :Not enough parameters");
+        return kContinue;
+    }
+
+    std::string channel_name = ParseChannelName(message.parameters[0]);
+    std::string nick_name = message.parameters[1];
+
+    std::string reason;
+    if (message.param_count >= 3 && !message.parameters[2].empty()) {
+        reason = message.parameters[2];
+    } else {
+        reason = client->nick_name;
+    }
+
+    if (channel_name.empty()) {
+        QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    Channel *channel = FindChannel(context->channels, channel_name);
+    if (channel == NULL) {
+        QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    Client *target = FindClient(context->clients, nick_name);
+    if (target == NULL) {
+        QueueNumericReply(client, kErrNoSuchNick, nick_name + " :No such nick/channel");
+        return kContinue;
+    }
+
+    if (FindMember(channel, client->fd) == NULL) {
+        QueueNumericReply(client, kErrNotOnChannel,
+                          client->nick_name + " " + channel_name + " :You're not on that channel");
+        return kContinue;
+    }
+
+    if (FindMember(channel, target->fd) == NULL) {
+        QueueNumericReply(client, kErrUserNotInChannel,
+                          nick_name + " " + channel_name + " :They aren't on that channel");
+        return kContinue;
+    }
+
+    if (channel->operators.find(client->nick_name) == channel->operators.end()) {
+        QueueNumericReply(client, kErrChanOpRivsNeeded,
+                          channel_name + " :You're not channel operator");
+        return kContinue;
+    }
+
+    std::string kick_msg =
+        UserPrefix(client) + " KICK #" + channel_name + " " + target->nick_name + " :" + reason;
+
+    QueueChannelMessage(context, channel, kick_msg, NULL);
+
+    channel->members.erase(target->nick_name);
+    channel->operators.erase(target->nick_name);
+    channel->invited.erase(target->nick_name);
+
+    target->channels.erase(channel_name);
+
+    return kContinue;
+}
+
 // NOTE: Add Commands in this table!
 std::vector<CommandEntry> InitializeCommandTable()
 {
@@ -636,7 +703,7 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kJoin, HandleJoin, 1, 1});
     table.push_back((CommandEntry){kPart, HandlePart, 1, 2});
     table.push_back((CommandEntry){kMode, HandleMode, 2, 5});
-    table.push_back((CommandEntry){kMode, HandleInvite, 2, 2});
+    table.push_back((CommandEntry){kInvite, HandleInvite, 1, 3});
 
     return table;
 }
