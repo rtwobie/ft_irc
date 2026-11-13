@@ -94,10 +94,11 @@ std::string GetChannelModesAndParams(Channel &channel)
     return oss.str();
 }
 
-bool DoesChannelModeExist(char identifier) {
+bool DoesChannelModeExist(char identifier)
+{
     bool mode_exist = false;
 
-    for (size_t i = 0; i  < kAvailableModesTab.size(); i++) {
+    for (size_t i = 0; i < kAvailableModesTab.size(); i++) {
         if (identifier == kAvailableModesTab[i].identifier) {
             mode_exist = true;
             break;
@@ -115,7 +116,7 @@ bool NeedsChannelModeParameter(char identifier)
         return true;
     }
 
-    for (size_t i = 0; i  < kAvailableModesTab.size(); i++) {
+    for (size_t i = 0; i < kAvailableModesTab.size(); i++) {
         if (identifier == kAvailableModesTab[i].identifier) {
             return kAvailableModesTab[i].needs_param;
         }
@@ -225,6 +226,19 @@ Channel *FindChannel(const std::map<std::string, Channel *> &channels, const std
     }
 
     return it->second;
+}
+
+Client *FindMember(const Channel *channel, const int fd)
+{
+    std::map<std::string, Client *>::const_iterator it = channel->members.begin();
+
+    while (it != channel->members.end()) {
+        if (it->second->fd == fd) {
+            return it->second;
+        }
+        it++;
+    }
+    return NULL;
 }
 
 Channel *CreateChannel(std::string &channel_name, Client *client)

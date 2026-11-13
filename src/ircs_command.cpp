@@ -681,19 +681,6 @@ CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *context,
     return kContinue;
 }
 
-Client *FindMember(const Channel *channel, const int fd)
-{
-    std::map<std::string, Client *>::const_iterator it = channel->members.begin();
-
-    while (it != channel->members.end()) {
-        if (it->second->fd == fd) {
-            return it->second;
-        }
-        it++;
-    }
-    return NULL;
-}
-
 CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *context, Client *client,
                            const msg::Message &message)
 {
