@@ -512,7 +512,7 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
 }
 
 std::string ProcessChannelModes(Channel &channel, Client *client, const std::string &modes,
-                         const std::string *message_parameters, int param_count)
+                                const std::string *message_parameters, int param_count)
 {
     std::string modes_that_changed;
     std::string params_that_were_used;
@@ -730,6 +730,8 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
         }
     }
 
+    channel->invited[target->nick_name] = target;
+
     QueueNumericReply(target, kRplInviting,
                       client->nick_name + " " + target->nick_name + " " + channel_name);
 
@@ -849,9 +851,8 @@ CommandStatus HandleTopic(const CommandEntry *command, EventLoopContext *context
     std::string topic_msg = UserPrefix(client) + " TOPIC #" + channel_name + " :" + channel->topic;
     QueueChannelMessage(context, channel, topic_msg, NULL);
 
-  return kContinue;
+    return kContinue;
 }
-
 
 // NOTE: Add Commands in this table!
 std::vector<CommandEntry> InitializeCommandTable()
