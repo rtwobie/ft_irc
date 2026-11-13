@@ -760,6 +760,8 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
         }
     }
 
+    channel->invited[target->nick_name] = target;
+
     QueueNumericReply(target, kRplInviting,
                       client->nick_name + " " + target->nick_name + " " + channel_name);
 
