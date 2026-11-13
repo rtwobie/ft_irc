@@ -771,7 +771,12 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
 
     channel->invited[target->nick_name] = target;
 
-    QueueNumericReply(target, kRplInviting, "#" + channel->name + " " + target->nick_name);
+    QueueNumericReply(client, kRplInviting, target->nick_name + " #" + channel->name);
+
+    std::string reply =
+        UserPrefix(client) + " " + command->name + " " + target->nick_name + " :#" + channel->name;
+    QueueRawReply(target, reply);
+    context->pending_writes.push_back(target->fd);
 
     return kContinue;
 }
