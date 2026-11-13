@@ -391,9 +391,9 @@ int JoinChannel(Channel *channel, Client *client, const std::vector<std::string>
 {
     if (channel->members.size() >= channel->max_members) {
         std::string chan_mode_limit = (channel->modes & kChanModeLimit) ? " (+l)" : "";
-        std::string reply = "#" + channel->name+ " :Cannot join channel" + chan_mode_limit;
-            QueueNumericReply(client, kErrChannelIsFull, reply);
-            return -1;
+        std::string reply = "#" + channel->name + " :Cannot join channel" + chan_mode_limit;
+        QueueNumericReply(client, kErrChannelIsFull, reply);
+        return -1;
     }
 
     if (channel->modes & kChanModeInviteOnly) {
@@ -748,31 +748,34 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
         return kContinue;
     }
 
-    if (FindMember(channel, client->fd) == NULL) {
+    if (!IsOnChannel(*channel, client->nick_name)) {
         QueueNumericReply(client, kErrNotOnChannel,
-                          client->nick_name + " " + channel_name + " :You're not on that channel");
+                          "#" + channel_name + " :You're not on that channel");
         return kContinue;
     }
 
-    if (FindMember(channel, target->fd) != NULL) {
-        QueueNumericReply(
-            client, kErrUserOnChannel,
-            client->nick_name + " " + nick_name + " " + channel_name + " :is already on channel");
+    if (IsOnChannel(*channel, target->nick_name)) {
+        QueueNumericReply(client, kErrUserOnChannel,
+                          target->nick_name + " #" + channel_name + " :is already on channel");
         return kContinue;
     }
 
-    if ((channel->modes & kChanModeInviteOnly) != 0) {
+    if (channel->modes & kChanModeInviteOnly) {
         if (!IsChannelOperator(*channel, client->nick_name)) {
             QueueNumericReply(client, kErrChanOpRivsNeeded,
-                              channel_name + " :You're not channel operator");
+                              '#' + channel->name + " :You're not channel operator");
             return kContinue;
         }
     }
 
     channel->invited[target->nick_name] = target;
 
-    QueueNumericReply(target, kRplInviting,
-                      client->nick_name + " " + target->nick_name + " " + channel_name);
+    QueueNumericReply(client, kRplInviting, target->nick_name + " #" + channel->name);
+
+    std::string reply =
+        UserPrefix(client) + " " + command->name + " " + target->nick_name + " :#" + channel->name;
+    QueueRawReply(target, reply);
+    context->pending_writes.push_back(target->fd);
 
     return kContinue;
 }
