@@ -265,6 +265,7 @@ int AddMemberToChannel(Channel &channel, Client *client)
     }
 
     Logger(log::kInfo, "", "#%s: %s joined", channel.name.c_str(), client->nick_name.c_str());
+    channel.invited.erase(client->nick_name);
     channel.members[client->nick_name] = client;
     client->channels[channel.name] = &channel;
     return channel.members.size();
@@ -281,6 +282,13 @@ bool IsChannelOperator(const Channel &channel, const std::string &nick)
 bool IsOnChannel(const Channel &channel, const std::string &nick)
 {
     if (channel.members.find(nick) == channel.members.end()) {
+        return false;
+    }
+    return true;
+}
+
+bool ClientHasInvite(Channel &channel, const std::string &nick) {
+    if (channel.invited.find(nick) == channel.invited.end()) {
         return false;
     }
     return true;

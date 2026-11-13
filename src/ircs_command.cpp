@@ -396,9 +396,18 @@ int JoinChannel(Channel *channel, Client *client, const std::vector<std::string>
             return -1;
     }
 
-    if (channel->modes & kChanModeKey) {
+    if (channel->modes & kChanModeInviteOnly) {
+        if (!ClientHasInvite(*channel, client->nick_name)) {
+            std::string reply = "#" + channel->name + " :Cannot join channel (+i)";
+            QueueNumericReply(client, kErrInviteOnlyChan, reply);
+            return -1;
+        }
+    }
+
+    // NOTE: that joining a channel via invite bypasses the need for a key
+    if (!(channel->modes & kChanModeInviteOnly) && channel->modes & kChanModeKey) {
         if (*used_keys >= keys.size()) {
-            std::string reply = "#" + channel->name+ " :Cannot join channel (+k)";
+            std::string reply = "#" + channel->name + " :Cannot join channel (+k)";
             QueueNumericReply(client, kErrBadChannelKey, reply);
             return -1;
         }
