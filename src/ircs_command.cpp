@@ -386,6 +386,35 @@ CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *conte
     return kContinue;
 }
 
+int JoinChannel(Channel *channel, Client *client, const std::vector<std::string> &keys,
+                size_t *used_keys)
+{
+    if (channel->members.size() >= channel->max_members) {
+        std::string chan_mode_limit = (channel->modes & kChanModeLimit) ? " (+l)" : "";
+        std::string reply = "#" + channel->name+ " :Cannot join channel" + chan_mode_limit;
+            QueueNumericReply(client, kErrChannelIsFull, reply);
+            return -1;
+    }
+
+    if (channel->modes & kChanModeKey) {
+        if (*used_keys >= keys.size()) {
+            std::string reply = "#" + channel->name+ " :Cannot join channel (+k)";
+            QueueNumericReply(client, kErrBadChannelKey, reply);
+            return -1;
+        }
+        if (keys[*used_keys] != channel->key) {
+            std::string reply = "#" + channel->name + " :Cannot join channel (+k)";
+            QueueNumericReply(client, kErrBadChannelKey, reply);
+            ++*used_keys;
+            return -1;
+        }
+        ++*used_keys;
+    }
+
+    AddMemberToChannel(*channel, client);
+    return 0;
+}
+
 CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context, Client *client,
                          const msg::Message &message)
 {
@@ -424,6 +453,10 @@ CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context,
     std::vector<std::string> channel_names;
     int number_of_recipients = GetRecipientsFromString(message.parameters[0], channel_names);
 
+    std::vector<std::string> keys;
+    size_t used_keys = 0;
+    GetRecipientsFromString(message.parameters[1], keys);
+
     for (int i = 0; i < number_of_recipients; i++) {
         if (i >= kTargMax) {
             std::ostringstream oss;
@@ -452,13 +485,10 @@ CommandStatus HandleJoin(const CommandEntry *command, EventLoopContext *context,
             channel = CreateChannel(channel_name, client);
             context->channels[channel_name] = channel;
             Logger(log::kDebug, "", "Open channels: %d", context->channels.size());
-        } else {
-            if (AddMemberToChannel(*channel, client) == -1) {
-                std::stringstream reply;
-                reply << "#" << channel_name << " :Cannot join channel (+l)";
-                QueueNumericReply(client, kErrChannelIsFull, reply.str());
-                continue;
-            }
+        }
+
+        if (JoinChannel(channel, client, keys, &used_keys) == -1) {
+            continue;
         }
 
         SendJoinReplies(context, channel, client);
@@ -512,7 +542,7 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
 }
 
 std::string ProcessChannelModes(Channel &channel, Client *client, const std::string &modes,
-                         const std::string *message_parameters, int param_count)
+                                const std::string *message_parameters, int param_count)
 {
     std::string modes_that_changed;
     std::string params_that_were_used;
@@ -849,9 +879,8 @@ CommandStatus HandleTopic(const CommandEntry *command, EventLoopContext *context
     std::string topic_msg = UserPrefix(client) + " TOPIC #" + channel_name + " :" + channel->topic;
     QueueChannelMessage(context, channel, topic_msg, NULL);
 
-  return kContinue;
+    return kContinue;
 }
-
 
 // NOTE: Add Commands in this table!
 std::vector<CommandEntry> InitializeCommandTable()
@@ -866,7 +895,7 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kPrivMsg, HandlePrivMsg, 2, 2});
     table.push_back((CommandEntry){kPing, HandlePing, 1, 2});
     table.push_back((CommandEntry){kQuit, HandleQuit, 0, 1});
-    table.push_back((CommandEntry){kJoin, HandleJoin, 1, 1});
+    table.push_back((CommandEntry){kJoin, HandleJoin, 1, 2});
     table.push_back((CommandEntry){kPart, HandlePart, 1, 2});
     table.push_back((CommandEntry){kInvite, HandleInvite, 1, 3});
     table.push_back((CommandEntry){kKick, HandleKick, 1, 3});
