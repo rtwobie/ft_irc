@@ -391,9 +391,9 @@ int JoinChannel(Channel *channel, Client *client, const std::vector<std::string>
 {
     if (channel->members.size() >= channel->max_members) {
         std::string chan_mode_limit = (channel->modes & kChanModeLimit) ? " (+l)" : "";
-        std::string reply = "#" + channel->name+ " :Cannot join channel" + chan_mode_limit;
-            QueueNumericReply(client, kErrChannelIsFull, reply);
-            return -1;
+        std::string reply = "#" + channel->name + " :Cannot join channel" + chan_mode_limit;
+        QueueNumericReply(client, kErrChannelIsFull, reply);
+        return -1;
     }
 
     if (channel->modes & kChanModeInviteOnly) {
@@ -771,8 +771,7 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
 
     channel->invited[target->nick_name] = target;
 
-    QueueNumericReply(target, kRplInviting,
-                      client->nick_name + " " + target->nick_name + " " + channel_name);
+    QueueNumericReply(target, kRplInviting, "#" + channel->name + " " + target->nick_name);
 
     return kContinue;
 }
