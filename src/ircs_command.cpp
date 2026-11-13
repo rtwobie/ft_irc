@@ -146,8 +146,6 @@ CommandStatus HandleNick(const CommandEntry *command, EventLoopContext *context,
         client->state = kClientHasNick;
     }
 
-    // Notify client on nickname change
-    // TODO: Has to broadcast to other clients, that are in the same channels
     if (!client->nick_name.empty()) {
         std::string reply = ":" + client->nick_name + "!" + client->user_name + "@" +
                             client->host_name + " " + command->name + " " + nick_name;
@@ -326,17 +324,6 @@ Client *FindClient(std::map<int, Client *> &clients, const std::string &nickname
 CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *context, Client *client,
                             const msg::Message &message)
 {
-    // NOTE: Possible Error codes
-    // ERR_NORECIPIENT
-    // ERR_NOTEXTTOSEND
-    // ERR_TOOMANYTARGETS
-    //
-    // ERR_CANNOTSENDTOCHAN
-    // ERR_WILDTOPLEVEL
-    // ERR_NOSUCHNICK
-    // ERR_NOTOPLEVEL
-    // RPL_AWAY
-
     if (client->state != kClientRegistered) {
         QueueNumericReply(client, kErrNotRegistered, ":You have not registered");
         return kContinue;
@@ -527,15 +514,6 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
 std::string ProcessChannelModes(Channel &channel, Client *client, const std::string &modes,
                          const std::string *message_parameters, int param_count)
 {
-    //    Numeric Replies:
-    // ERR_NEEDMOREPARAMS              ERR_KEYSET
-    // ERR_NOCHANMODES                 ERR_CHANOPRIVSNEEDED
-    // ERR_USERNOTINCHANNEL            ERR_UNKNOWNMODE
-    // RPL_CHANNELMODEIS
-    // RPL_BANLIST                     RPL_ENDOFBANLIST
-    // RPL_EXCEPTLIST                  RPL_ENDOFEXCEPTLIST
-    // RPL_INVITELIST                  RPL_ENDOFINVITELIST
-    // RPL_UNIQOPIS
     std::string modes_that_changed;
     std::string params_that_were_used;
 
@@ -703,6 +681,178 @@ CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *context,
     return kContinue;
 }
 
+CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *context, Client *client,
+                           const msg::Message &message)
+{
+    if (message.param_count < command->min_params) {
+        QueueNumericReply(client, kErrNeedMoreParams, command->name + " :Not enough parameters");
+        return kContinue;
+    }
+
+    std::string nick_name = message.parameters[0];
+    std::string channel_name = ParseChannelName(message.parameters[1]);
+
+    if (channel_name.empty()) {
+        QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    Channel *channel = FindChannel(context->channels, channel_name);
+    if (channel == NULL) {
+        QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    Client *target = FindClient(context->clients, nick_name);
+    if (target == NULL) {
+        QueueNumericReply(client, kErrNoSuchNick, nick_name + " :No such nick/channel");
+        return kContinue;
+    }
+
+    if (FindMember(channel, client->fd) == NULL) {
+        QueueNumericReply(client, kErrNotOnChannel,
+                          client->nick_name + " " + channel_name + " :You're not on that channel");
+        return kContinue;
+    }
+
+    if (FindMember(channel, target->fd) != NULL) {
+        QueueNumericReply(
+            client, kErrUserOnChannel,
+            client->nick_name + " " + nick_name + " " + channel_name + " :is already on channel");
+        return kContinue;
+    }
+
+    if ((channel->modes & kChanModeInviteOnly) != 0) {
+        if (!IsChannelOperator(*channel, client->nick_name)) {
+            QueueNumericReply(client, kErrChanOpRivsNeeded,
+                              channel_name + " :You're not channel operator");
+            return kContinue;
+        }
+    }
+
+    QueueNumericReply(target, kRplInviting,
+                      client->nick_name + " " + target->nick_name + " " + channel_name);
+
+    return kContinue;
+}
+
+CommandStatus HandleKick(const CommandEntry *command, EventLoopContext *context, Client *client,
+                         const msg::Message &message)
+{
+    if (message.param_count < command->min_params) {
+        QueueNumericReply(client, kErrNeedMoreParams, command->name + " :Not enough parameters");
+        return kContinue;
+    }
+
+    std::string channel_name = ParseChannelName(message.parameters[0]);
+    std::string nick_name = message.parameters[1];
+
+    std::string reason;
+    if (message.param_count >= 3 && !message.parameters[2].empty()) {
+        reason = message.parameters[2];
+    } else {
+        reason = client->nick_name;
+    }
+
+    if (channel_name.empty()) {
+        QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    Channel *channel = FindChannel(context->channels, channel_name);
+    if (channel == NULL) {
+        QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    Client *target = FindClient(context->clients, nick_name);
+    if (target == NULL) {
+        QueueNumericReply(client, kErrNoSuchNick, nick_name + " :No such nick/channel");
+        return kContinue;
+    }
+
+    if (FindMember(channel, client->fd) == NULL) {
+        QueueNumericReply(client, kErrNotOnChannel,
+                          client->nick_name + " " + channel_name + " :You're not on that channel");
+        return kContinue;
+    }
+
+    if (FindMember(channel, target->fd) == NULL) {
+        QueueNumericReply(client, kErrUserNotInChannel,
+                          nick_name + " " + channel_name + " :They aren't on that channel");
+        return kContinue;
+    }
+
+    if (channel->operators.find(client->nick_name) == channel->operators.end()) {
+        QueueNumericReply(client, kErrChanOpRivsNeeded,
+                          channel_name + " :You're not channel operator");
+        return kContinue;
+    }
+
+    std::string kick_msg =
+        UserPrefix(client) + " KICK #" + channel_name + " " + target->nick_name + " :" + reason;
+
+    QueueChannelMessage(context, channel, kick_msg, NULL);
+
+    RemoveMemberFromChannel(*channel, target);
+    channel->invited.erase(target->nick_name);
+
+    return kContinue;
+}
+
+CommandStatus HandleTopic(const CommandEntry *command, EventLoopContext *context, Client *client,
+                          const msg::Message &message)
+{
+    if (message.param_count < command->min_params) {
+        QueueNumericReply(client, kErrNeedMoreParams, command->name + " :Not enough parameters");
+        return kContinue;
+    }
+
+    std::string channel_name = ParseChannelName(message.parameters[0]);
+
+    if (channel_name.empty()) {
+        QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    Channel *channel = FindChannel(context->channels, channel_name);
+    if (channel == NULL) {
+        QueueNumericReply(client, kErrNoSuchChannel, "#" + channel_name + " :No such channel");
+        return kContinue;
+    }
+
+    if (FindMember(channel, client->fd) == NULL) {
+        QueueNumericReply(client, kErrNotOnChannel,
+                          client->nick_name + " " + channel_name + " :You're not on that channel");
+        return kContinue;
+    }
+
+    if (message.param_count == 1 || (message.param_count >= 2 && message.parameters[1].empty())) {
+        if (channel->topic.empty()) {
+            QueueNumericReply(client, kRplNoTopic, "#" + channel_name + " :No topic is set");
+        } else {
+            QueueNumericReply(client, kRplTopic, "#" + channel_name + " :" + channel->topic);
+        }
+        return kContinue;
+    }
+
+    if ((channel->modes & kChanModeTopic) != 0) {
+        if (channel->operators.find(client->nick_name) == channel->operators.end()) {
+            QueueNumericReply(client, kErrChanOpRivsNeeded,
+                              channel_name + " :You're not channel operator");
+            return kContinue;
+        }
+    }
+
+    channel->topic = message.parameters[1];
+
+    std::string topic_msg = UserPrefix(client) + " TOPIC #" + channel_name + " :" + channel->topic;
+    QueueChannelMessage(context, channel, topic_msg, NULL);
+
+  return kContinue;
+}
+
+
 // NOTE: Add Commands in this table!
 std::vector<CommandEntry> InitializeCommandTable()
 {
@@ -718,6 +868,9 @@ std::vector<CommandEntry> InitializeCommandTable()
     table.push_back((CommandEntry){kQuit, HandleQuit, 0, 1});
     table.push_back((CommandEntry){kJoin, HandleJoin, 1, 1});
     table.push_back((CommandEntry){kPart, HandlePart, 1, 2});
+    table.push_back((CommandEntry){kInvite, HandleInvite, 1, 3});
+    table.push_back((CommandEntry){kKick, HandleKick, 1, 3});
+    table.push_back((CommandEntry){kTopic, HandleTopic, 1, 2});
     table.push_back((CommandEntry){kMode, HandleMode, 1, 15});
 
     return table;

@@ -20,9 +20,12 @@ const char *const kJoin = "JOIN";
 const char *const kPart = "PART";
 const char *const kOper = "OPER";
 const char *const kMode = "MODE";
+const char *const kInvite = "INVITE";
 const char *const kQuit = "QUIT";
 const char *const kUsers = "USERS";
 const char *const kSummon = "SUMMON";
+const char *const kKick = "KICK";
+const char *const kTopic = "TOPIC";
 
 // IRC Error Codes
 // Error replies (400 to 599)
@@ -35,6 +38,7 @@ enum NumericReplies {
     kRplChannelModeIs = 324,
     kRplNoTopic = 331,
     kRplTopic = 332,
+    kRplInviting = 341,
     kRplNamReply = 353,
     kRplEndOfNames = 366,
 
