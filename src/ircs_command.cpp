@@ -789,7 +789,7 @@ CommandStatus HandleKick(const CommandEntry *command, EventLoopContext *context,
     }
 
     std::string channel_name = ParseChannelName(message.parameters[0]);
-    std::string nick_name = message.parameters[1];
+    std::string target_nick = message.parameters[1];
 
     std::string reason;
     if (message.param_count >= 3 && !message.parameters[2].empty()) {
@@ -809,27 +809,27 @@ CommandStatus HandleKick(const CommandEntry *command, EventLoopContext *context,
         return kContinue;
     }
 
-    Client *target = FindClient(context->clients, nick_name);
+    Client *target = FindClient(context->clients, target_nick);
     if (target == NULL) {
-        QueueNumericReply(client, kErrNoSuchNick, nick_name + " :No such nick/channel");
+        QueueNumericReply(client, kErrNoSuchNick, target_nick + " :No such nick/channel");
         return kContinue;
     }
 
     if (FindMember(channel, client->fd) == NULL) {
         QueueNumericReply(client, kErrNotOnChannel,
-                          client->nick_name + " " + channel_name + " :You're not on that channel");
+                          "#" + channel_name + " :You're not on that channel");
         return kContinue;
     }
 
     if (FindMember(channel, target->fd) == NULL) {
         QueueNumericReply(client, kErrUserNotInChannel,
-                          nick_name + " " + channel_name + " :They aren't on that channel");
+                          target_nick + " #" + channel_name + " :They aren't on that channel");
         return kContinue;
     }
 
-    if (channel->operators.find(client->nick_name) == channel->operators.end()) {
+    if (!IsChannelOperator(*channel, client->nick_name)) {
         QueueNumericReply(client, kErrChanOpRivsNeeded,
-                          channel_name + " :You're not channel operator");
+                          "#" + channel_name + " :You're not channel operator");
         return kContinue;
     }
 
