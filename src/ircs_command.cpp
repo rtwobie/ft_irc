@@ -84,7 +84,10 @@ CommandStatus HandlePass(const CommandEntry *command, EventLoopContext *context,
         return kContinue;
     }
     if (message.param_count < command->min_params) {
-        QueueNumericReply(client, kErrNeedMoreParams, "PASS :Not enough parameters");
+        QueueNumericReply(client, kErrNeedMoreParams, command->name + " :Not enough parameters");
+        return kContinue;
+    }
+    if (!context->password) {
         return kContinue;
     }
     if (message.parameters[0] != context->password) {
@@ -137,6 +140,11 @@ CommandStatus HandleNick(const CommandEntry *command, EventLoopContext *context,
         }
     }
 
+    if (context->password && !client->pass_accepted) {
+        QueueNumericReply(client, kErrPasswdMismatch, ":Password incorrect");
+        return kDisconnect;
+    }
+
     if (client->state == kClientHasUser && client->state != kClientRegistered) {
         client->nick_name = nick_name;
         client->state = kClientRegistered;
@@ -165,7 +173,7 @@ CommandStatus HandleUser(const CommandEntry *command, EventLoopContext *context,
         return kContinue;
     }
     if (message.param_count < command->min_params) {
-        QueueNumericReply(client, kErrNeedMoreParams, "PASS :Not enough parameters");
+        QueueNumericReply(client, kErrNeedMoreParams, command->name + " :Not enough parameters");
         return kContinue;
     }
 
@@ -174,6 +182,11 @@ CommandStatus HandleUser(const CommandEntry *command, EventLoopContext *context,
 
     if (user_name.length() > 10) {
         user_name = user_name.substr(0, 10);
+    }
+
+    if (context->password && !client->pass_accepted) {
+        QueueNumericReply(client, kErrPasswdMismatch, ":Password incorrect");
+        return kDisconnect;
     }
 
     if (client->state == kClientHasNick && client->state != kClientRegistered) {
