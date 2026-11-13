@@ -31,8 +31,8 @@ using ircs::log::Logger;
 
 int main(int argc, char **argv)
 {
-    if (argc != 3) {
-        std::cout << "Usage: ./ircserv <port> <password>" << std::endl;
+    if (argc != 2 && argc != 3) {
+        std::cout << "Usage: ./ircserv <port> [ <password> ]" << std::endl;
         return 1;
     }
 
@@ -74,7 +74,7 @@ int main(int argc, char **argv)
     el.context.host_name = kServerName;
     el.context.version = kServerVersion;
     el.context.port = static_cast<int>(port);
-    el.context.password = (argv[2] == NULL || argv[2][0] == '\0') ? NULL : argv[2];
+    el.context.password = (argc == 2 || argv[2] == NULL || argv[2][0] == '\0') ? NULL : argv[2];
     el.context.creation_date = getCreationDate();
 
     if (CreateFileEvent(&el, listenfd, ircs::kOnReadable, ircs::OnListenerRead, NULL) == -1) {
