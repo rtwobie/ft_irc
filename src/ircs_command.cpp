@@ -659,7 +659,7 @@ CommandStatus HandleMode(const CommandEntry *command, EventLoopContext *context,
         QueueNumericReply(client, kErrNoSuchNick, message.parameters[0] + " :No such nick/channel");
         return kContinue;
     }
-  
+
     std::string channel_name = ParseChannelName(message.parameters[0]);
     if (channel_name.empty()) {
         QueueNumericReply(client, kErrNoSuchChannel, '#' + channel_name + " :No such channel");
@@ -758,7 +758,7 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
     }
 
     if ((channel->modes & kChanModeInviteOnly) != 0) {
-        if (channel->operators.find(client->nick_name) == channel->operators.end()) {
+        if (!IsChannelOperator(*channel, client->nick_name)) {
             QueueNumericReply(client, kErrChanOpRivsNeeded,
                               channel_name + " :You're not channel operator");
             return kContinue;
@@ -829,11 +829,8 @@ CommandStatus HandleKick(const CommandEntry *command, EventLoopContext *context,
 
     QueueChannelMessage(context, channel, kick_msg, NULL);
 
-    channel->members.erase(target->nick_name);
-    channel->operators.erase(target->nick_name);
+    RemoveMemberFromChannel(*channel, target);
     channel->invited.erase(target->nick_name);
-
-    target->channels.erase(channel_name);
 
     return kContinue;
 }
@@ -886,7 +883,7 @@ CommandStatus HandleTopic(const CommandEntry *command, EventLoopContext *context
 
     std::string topic_msg = UserPrefix(client) + " TOPIC #" + channel_name + " :" + channel->topic;
     QueueChannelMessage(context, channel, topic_msg, NULL);
-  
+
   return kContinue;
 }
 
