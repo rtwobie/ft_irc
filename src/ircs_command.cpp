@@ -768,6 +768,11 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
         }
     }
 
+    // prevent infinite invites by erasing the first element of the invited map
+    // once a specific value has been reached
+    if (!channel->invited.empty() && channel->invited.size() >= kDefaultMaxMembers) {
+        channel->invited.erase(channel->invited.begin());
+    }
     channel->invited[target->nick_name] = target;
 
     QueueNumericReply(client, kRplInviting, target->nick_name + " #" + channel->name);
