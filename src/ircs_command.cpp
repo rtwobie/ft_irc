@@ -750,21 +750,20 @@ CommandStatus HandleInvite(const CommandEntry *command, EventLoopContext *contex
 
     if (FindMember(channel, client->fd) == NULL) {
         QueueNumericReply(client, kErrNotOnChannel,
-                          client->nick_name + " " + channel_name + " :You're not on that channel");
+                          "#" + channel_name + " :You're not on that channel");
         return kContinue;
     }
 
     if (FindMember(channel, target->fd) != NULL) {
-        QueueNumericReply(
-            client, kErrUserOnChannel,
-            client->nick_name + " " + nick_name + " " + channel_name + " :is already on channel");
+        QueueNumericReply(client, kErrUserOnChannel,
+                          target->nick_name + " #" + channel_name + " :is already on channel");
         return kContinue;
     }
 
     if ((channel->modes & kChanModeInviteOnly) != 0) {
         if (!IsChannelOperator(*channel, client->nick_name)) {
             QueueNumericReply(client, kErrChanOpRivsNeeded,
-                              channel_name + " :You're not channel operator");
+                              '#' + channel->name + " :You're not channel operator");
             return kContinue;
         }
     }
