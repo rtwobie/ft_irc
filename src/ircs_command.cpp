@@ -146,8 +146,6 @@ CommandStatus HandleNick(const CommandEntry *command, EventLoopContext *context,
         client->state = kClientHasNick;
     }
 
-    // Notify client on nickname change
-    // TODO: Has to broadcast to other clients, that are in the same channels
     if (!client->nick_name.empty()) {
         std::string reply = ":" + client->nick_name + "!" + client->user_name + "@" +
                             client->host_name + " " + command->name + " " + nick_name;
@@ -326,17 +324,6 @@ Client *FindClient(std::map<int, Client *> &clients, const std::string &nickname
 CommandStatus HandlePrivMsg(const CommandEntry *command, EventLoopContext *context, Client *client,
                             const msg::Message &message)
 {
-    // NOTE: Possible Error codes
-    // ERR_NORECIPIENT
-    // ERR_NOTEXTTOSEND
-    // ERR_TOOMANYTARGETS
-    //
-    // ERR_CANNOTSENDTOCHAN
-    // ERR_WILDTOPLEVEL
-    // ERR_NOSUCHNICK
-    // ERR_NOTOPLEVEL
-    // RPL_AWAY
-
     if (client->state != kClientRegistered) {
         QueueNumericReply(client, kErrNotRegistered, ":You have not registered");
         return kContinue;
@@ -527,15 +514,6 @@ CommandStatus HandlePart(const CommandEntry *command, EventLoopContext *context,
 std::string ProcessChannelModes(Channel &channel, Client *client, const std::string &modes,
                          const std::string *message_parameters, int param_count)
 {
-    //    Numeric Replies:
-    // ERR_NEEDMOREPARAMS              ERR_KEYSET
-    // ERR_NOCHANMODES                 ERR_CHANOPRIVSNEEDED
-    // ERR_USERNOTINCHANNEL            ERR_UNKNOWNMODE
-    // RPL_CHANNELMODEIS
-    // RPL_BANLIST                     RPL_ENDOFBANLIST
-    // RPL_EXCEPTLIST                  RPL_ENDOFEXCEPTLIST
-    // RPL_INVITELIST                  RPL_ENDOFINVITELIST
-    // RPL_UNIQOPIS
     std::string modes_that_changed;
     std::string params_that_were_used;
 
