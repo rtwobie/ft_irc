@@ -839,7 +839,6 @@ CommandStatus HandleKick(const CommandEntry *command, EventLoopContext *context,
     QueueChannelMessage(context, channel, kick_msg, NULL);
 
     RemoveMemberFromChannel(*channel, target);
-    channel->invited.erase(target->nick_name);
 
     return kContinue;
 }

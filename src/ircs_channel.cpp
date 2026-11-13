@@ -341,6 +341,7 @@ void RemoveMemberFromChannel(Channel &channel, Client *client)
     Logger(log::kInfo, "", "#%s: %s has been removed", channel.name.c_str(),
            client->nick_name.c_str());
     channel.members.erase(client->nick_name);
+    channel.invited.erase(client->nick_name); // just in case it has not been deleted before
     client->channels.erase(channel.name);
 }
 
