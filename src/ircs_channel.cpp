@@ -61,10 +61,10 @@ std::vector<ChannelMode> InitializeModesTab()
 {
     std::vector<ChannelMode> tab;
 
-    tab.push_back((ChannelMode){kChanModeInviteOnly, kChanModeInviteOnlyIdentifier});
-    tab.push_back((ChannelMode){kChanModeTopic, kChanModeTopicIdentifier});
-    tab.push_back((ChannelMode){kChanModeKey, kChanModeKeyIdentifier});
-    tab.push_back((ChannelMode){kChanModeLimit, kChanModeLimitIdentifier});
+    tab.push_back((ChannelMode){kChanModeInviteOnly, kChanModeInviteOnlyIdentifier, false});
+    tab.push_back((ChannelMode){kChanModeTopic, kChanModeTopicIdentifier, false});
+    tab.push_back((ChannelMode){kChanModeKey, kChanModeKeyIdentifier, true});
+    tab.push_back((ChannelMode){kChanModeLimit, kChanModeLimitIdentifier, true});
 
     return tab;
 }
@@ -94,6 +94,35 @@ std::string GetChannelModesAndParams(Channel &channel)
     return oss.str();
 }
 
+bool DoesChannelModeExist(char identifier) {
+    bool mode_exist = false;
+
+    for (size_t i = 0; i  < kAvailableModesTab.size(); i++) {
+        if (identifier == kAvailableModesTab[i].identifier) {
+            mode_exist = true;
+            break;
+        }
+    }
+
+    return mode_exist;
+}
+
+bool NeedsChannelModeParameter(char identifier)
+{
+    // special case for 'o' since it's not really a channel mode; not the
+    // best solution but it is what it is...
+    if (identifier == kChanModeOperatorIdentifier) {
+        return true;
+    }
+
+    for (size_t i = 0; i  < kAvailableModesTab.size(); i++) {
+        if (identifier == kAvailableModesTab[i].identifier) {
+            return kAvailableModesTab[i].needs_param;
+        }
+    }
+    return false;
+}
+
 int AddChannelMode(Channel &channel, char identifier)
 {
     bool mode_exist = false;
@@ -111,25 +140,38 @@ int AddChannelMode(Channel &channel, char identifier)
         return -1;
     }
 
-    channel.modes &= kAvailableModesTab[i].mask;
+    channel.modes |= kAvailableModesTab[i].mask;
     return 0;
 }
 
 void AddChannelMode(Channel &channel, uint32_t mask)
 {
-    channel.modes &= mask;
+    channel.modes |= mask;
+}
+
+int RemoveChannelMode(Channel &channel, char identifier)
+{
+    bool mode_exist = false;
+
+    size_t i = 0;
+    while (i < kAvailableModesTab.size()) {
+        if (identifier == kAvailableModesTab[i].identifier) {
+            mode_exist = true;
+            break;
+        }
+        ++i;
+    }
+
+    if (mode_exist == false) {
+        return -1;
+    }
+
+    channel.modes &= (~kAvailableModesTab[i].mask);
+    return 0;
 }
 
 void RemoveChannelMode(Channel &channel, uint32_t delmask)
 {
-    // TODO: Move logic to the caller
-    // if (delmask & kChanModeKey) {
-    //     channel.key.clear();
-    // }
-    // if (delmask & kChanModeLimit) {
-    //     channel.max_members = kDefaultMaxMembers;
-    // }
-
     channel.modes &= (~delmask);
 }
 
@@ -191,6 +233,7 @@ Channel *CreateChannel(std::string &channel_name, Client *client)
 
     chan->name = channel_name;
     chan->max_members = kDefaultMaxMembers;
+    chan->modes = 0;
     MakeChannelOperator(*chan, client);
     Logger(log::kInfo, "", "creating channel %s", channel_name.c_str());
     return chan;

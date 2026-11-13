@@ -29,6 +29,7 @@ const uint32_t kChanModeLimit = 0x0010;
 struct ChannelMode {
     uint32_t mask;
     char identifier;
+    bool needs_param;
 };
 
 struct Channel {
@@ -56,8 +57,12 @@ std::string GetNicknameList(Channel &channel);
 
 // Channel Mode
 std::string GetChannelModesAndParams(Channel &channel);
+bool DoesChannelModeExist(char identifier);
+bool NeedsChannelModeParameter(char identifier);
 int AddChannelMode(Channel &channel, char identifier);
-void AddChannelMode(Channel &channel, int mask);
+void AddChannelMode(Channel &channel, uint32_t mask);
+int RemoveChannelMode(Channel &channel, char identifier);
+void RemoveChannelMode(Channel &channel, uint32_t delmask);
 
 }  // namespace ircs
 
